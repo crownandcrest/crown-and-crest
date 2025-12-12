@@ -15,7 +15,6 @@ declare global {
 }
 
 export default function LoginPage() {
-    console.log("API KEY:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
     const supabase = createClient();
     const router = useRouter();
     
@@ -23,41 +22,45 @@ export default function LoginPage() {
     const [otp, setOtp] = useState("");
     const [step, setStep] = useState<"PHONE" | "OTP">("PHONE");
     const [loading, setLoading] = useState(false);
+    const [isRecaptchaReady, setIsRecaptchaReady] = useState(false);
 
-    // 1. Initialize Recaptcha Safely
-    const setupRecaptcha = () => {
-        // A. Check if already exists to avoid "Already Rendered" error
+    // 1. Strict Initialization on Mount
+    useEffect(() => {
+        // CLEANUP: If an old one exists, destroy it immediately
         if (window.recaptchaVerifier) {
-            return window.recaptchaVerifier;
+            try {
+                window.recaptchaVerifier.clear();
+            } catch (err) {
+                console.warn("Could not clear old recaptcha", err);
+            }
+            window.recaptchaVerifier = null;
         }
 
-        // B. Create new instance
-        const verifier = new RecaptchaVerifier(firebaseAuth, 'recaptcha-container', {
-            'size': 'invisible',
-            'callback': () => {
-                console.log("Recaptcha resolved");
-            },
-            'expired-callback': () => {
-                console.log("Recaptcha expired");
-                if(window.recaptchaVerifier) {
-                    window.recaptchaVerifier.clear();
-                    window.recaptchaVerifier = null;
+        // CREATE: New instance
+        try {
+            const verifier = new RecaptchaVerifier(firebaseAuth, 'recaptcha-container', {
+                'size': 'invisible',
+                'callback': () => {
+                    console.log("Recaptcha resolved");
+                },
+                'expired-callback': () => {
+                    console.log("Recaptcha expired");
+                    setIsRecaptchaReady(false);
                 }
-            }
-        });
+            });
 
-        window.recaptchaVerifier = verifier;
-        return verifier;
-    };
+            window.recaptchaVerifier = verifier;
+            setIsRecaptchaReady(true);
+        } catch (error) {
+            console.error("Recaptcha init failed", error);
+        }
 
-    // Initialize on mount (and cleanup on unmount)
-    useEffect(() => {
-        setupRecaptcha();
-        
-        // Cleanup function to remove widget when leaving page
+        // UNMOUNT: Cleanup when leaving page
         return () => {
             if (window.recaptchaVerifier) {
-                window.recaptchaVerifier.clear();
+                try {
+                    window.recaptchaVerifier.clear();
+                } catch (e) {}
                 window.recaptchaVerifier = null;
             }
         };
@@ -71,38 +74,45 @@ export default function LoginPage() {
             return;
         }
 
+        if (!isRecaptchaReady || !window.recaptchaVerifier) {
+            alert("Security check not ready. Please refresh the page.");
+            return;
+        }
+
         setLoading(true);
 
         try {
-            // Ensure verifier is ready
-            const appVerifier = setupRecaptcha();
-            
             const cleanPhone = phone.replace(/\D/g, ''); 
             const formatPh = `+91${cleanPhone}`;
 
             console.log("Sending OTP to:", formatPh);
             
-            const confirmationResult = await signInWithPhoneNumber(firebaseAuth, formatPh, appVerifier);
+            // USE EXISTING VERIFIER (Do not create a new one here!)
+            const confirmationResult = await signInWithPhoneNumber(firebaseAuth, formatPh, window.recaptchaVerifier);
+            
             window.confirmationResult = confirmationResult;
             setStep("OTP");
             
         } catch (error: any) {
             console.error("Firebase Error:", error);
             
-            // If error is related to recaptcha, clear it so we can try again
-            if (window.recaptchaVerifier) {
-                window.recaptchaVerifier.clear();
-                window.recaptchaVerifier = null;
-            }
-
-            if (error.code === 'auth/invalid-phone-number') {
-                alert("Invalid phone number format.");
+            // If captcha failed, we might need to reset it
+            if (error.code === 'auth/captcha-check-failed') {
+                alert("Captcha failed. Please refresh.");
+            } else if (error.code === 'auth/invalid-phone-number') {
+                alert("Invalid phone number.");
             } else if (error.code === 'auth/too-many-requests') {
-                alert("Too many requests. Please try again later.");
-            } else if (error.code === 'auth/invalid-app-credential') {
-                alert("App not authorized. Check Firebase Console -> Settings -> Authorized Domains.");
+                alert("Too many attempts. Try again later.");
             } else {
                 alert("Error: " + error.message);
+            }
+            
+            // Reset loader so user can try again
+            setLoading(false);
+            
+            // Force reload page on critical error so Captcha resets cleanly
+            if (error.message.includes("reCAPTCHA")) {
+                 window.location.reload();
             }
         }
         setLoading(false);
@@ -171,7 +181,7 @@ export default function LoginPage() {
                                 />
                             </div>
                         </div>
-                        <button disabled={loading} className="w-full bg-black text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 disabled:opacity-70">
+                        <button disabled={loading || !isRecaptchaReady} className="w-full bg-black text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 disabled:opacity-70">
                             {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Send OTP"}
                         </button>
                     </form>
@@ -191,7 +201,7 @@ export default function LoginPage() {
                         <button disabled={loading} className="w-full bg-black text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 disabled:opacity-70">
                             {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Verify & Login"}
                         </button>
-                        <button type="button" onClick={() => setStep("PHONE")} className="w-full text-xs text-gray-500 underline mt-2 text-center block">
+                        <button type="button" onClick={() => window.location.reload()} className="w-full text-xs text-gray-500 underline mt-2 text-center block">
                             Wrong number? Go back
                         </button>
                     </form>
