@@ -53,18 +53,35 @@ export async function POST(request: Request) {
     const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
     let supabaseUser = users.find(u => u.email === fakeEmail);
 
-    // C. If user doesn't exist, create them in Supabase
+    // C. If user doesn't exist, create them
     if (!supabaseUser) {
-      const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email: fakeEmail,
-        phone: phone,
-        email_confirm: true,
-        phone_confirm: true,
-        user_metadata: { firebase_uid: firebaseUid },
-      });
-      
-      if (createError) throw createError;
-      supabaseUser = newUser.user;
+      // First, check if phone exists to avoid duplicates
+      const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
+      const existingUser = listData.users.find(u => u.phone === phone);
+
+      if (existingUser) {
+        supabaseUser = existingUser;
+      } else {
+        // Create new user with "dummy" metadata to satisfy Database Triggers
+        const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+          email: fakeEmail,
+          phone: phone,
+          email_confirm: true,
+          phone_confirm: true,
+          user_metadata: { 
+            firebase_uid: firebaseUid,
+            full_name: "Customer", // <--- Fixes triggers requiring a name
+            name: "Customer",      // <--- Backup field
+            avatar_url: ""         // <--- Fixes triggers requiring an image
+          },
+        });
+        
+        if (createError) {
+            console.error("Supabase Create Error:", createError);
+            throw createError;
+        }
+        supabaseUser = newUser.user;
+      }
     }
 
     // D. Generate a Supabase JWT
