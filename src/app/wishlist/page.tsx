@@ -1,102 +1,56 @@
+// src/app/wishlist/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { Trash2, ShoppingBag } from "lucide-react";
+import { useWishlistDetails } from "@/lib/hooks/useWishlistDetails";
 import Link from "next/link";
 import Image from "next/image";
+import { Heart, X } from "lucide-react";
 
 export default function WishlistPage() {
-  const supabase = createClient();
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+    const { wishlist, removeFromWishlist } = useWishlistDetails();
 
-  // Fetch Wishlist
-  useEffect(() => {
-    async function fetchWishlist() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-         window.location.href = "/login";
-         return;
-      }
-
-      const { data, error } = await supabase
-        .from("wishlist")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (data) setItems(data);
-      setLoading(false);
+    if (wishlist.length === 0) {
+        return (
+            <div className="text-center py-20">
+                <Heart className="mx-auto w-16 h-16 text-gray-300" />
+                <h1 className="mt-4 text-2xl font-bold">Your Wishlist is Empty</h1>
+                <p className="mt-2 text-gray-500">
+                    You haven’t added any products to your wishlist yet.
+                </p>
+                <Link href="/shop" className="mt-6 inline-block bg-black text-white px-8 py-3 rounded-full font-bold">
+                    Continue Shopping
+                </Link>
+            </div>
+        );
     }
-    fetchWishlist();
-  }, []);
 
-  const removeItem = async (id: string) => {
-    // Optimistic UI Update (Remove from screen immediately)
-    setItems(items.filter(item => item.id !== id));
-    
-    // Remove from DB
-    await supabase.from("wishlist").delete().eq("id", id);
-  };
-
-  if (loading) return <div className="p-10 text-center">Loading...</div>;
-
-  return (
-    <div className="max-w-4xl mx-auto px-4 py-10">
-      <h1 className="text-3xl font-black mb-8 uppercase">My Wishlist ({items.length})</h1>
-
-      {items.length === 0 ? (
-        <div className="text-center py-20 bg-gray-50 rounded-2xl">
-            <h2 className="text-xl font-bold text-gray-400">Your wishlist is empty</h2>
-            <Link href="/shop" className="inline-block mt-4 px-6 py-3 bg-black text-white rounded-xl font-bold">
-                Go Shopping
-            </Link>
+    return (
+        <div className="container mx-auto px-4 md:px-10 py-10">
+            <h1 className="text-3xl font-black uppercase mb-10">My Wishlist</h1>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                {wishlist.map(item => (
+                    <div key={item.productId} className="group relative">
+                        <Link href={`/product/${item.slug}`}>
+                            <div className="relative aspect-[3/4] w-full overflow-hidden bg-gray-100 mb-4">
+                                <Image
+                                    src={item.image}
+                                    alt={item.name}
+                                    fill
+                                    className="object-cover"
+                                />
+                            </div>
+                            <h3 className="text-sm font-bold text-gray-900 mb-1 truncate">{item.name}</h3>
+                            <p className="text-sm font-bold">₹{item.price.toLocaleString()}</p>
+                        </Link>
+                        <button
+                            onClick={() => removeFromWishlist(item.productId)}
+                            className="absolute top-2 right-2 bg-white p-2 rounded-full shadow-md hover:bg-black hover:text-white transition opacity-0 group-hover:opacity-100"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                ))}
+            </div>
         </div>
-      ) : (
-        <div className="grid gap-4">
-          {items.map((item) => {
-            const product = item.product_data;
-            return (
-              <div key={item.id} className="flex items-center gap-4 p-4 border rounded-xl bg-white shadow-sm">
-                
-                {/* Product Image */}
-                <div className="w-20 h-20 bg-gray-100 rounded-lg relative overflow-hidden">
-                   {product.image && (
-                      <Image 
-                        src={product.image} 
-                        alt={product.title} 
-                        fill 
-                        className="object-cover"
-                      />
-                   )}
-                </div>
-
-                {/* Details */}
-                <div className="flex-1">
-                    <h3 className="font-bold text-lg">{product.title}</h3>
-                    <p className="text-gray-500">₹{product.price}</p>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2">
-                    <button 
-                        onClick={() => removeItem(item.id)}
-                        className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                    >
-                        <Trash2 className="w-5 h-5" />
-                    </button>
-                    <Link 
-                        href={`/shop/${item.product_id}`}
-                        className="p-3 bg-black text-white rounded-lg hover:bg-gray-800"
-                    >
-                        <ShoppingBag className="w-5 h-5" />
-                    </Link>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+    );
 }

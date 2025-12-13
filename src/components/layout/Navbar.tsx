@@ -5,12 +5,19 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { User, ShoppingBag, Menu, X, LogOut, Heart } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useWishlist } from "@/lib/hooks/useWishlist";
+import { useCart } from "@/context/CartContext";
 
 export default function Navbar() {
   const supabase = createClient();
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { getWishlistCount } = useWishlist();
+  const { getCartCount } = useCart();
+
+  const wishlistCount = getWishlistCount();
+  const cartCount = getCartCount();
 
   // 1. LISTEN TO AUTH STATE
   useEffect(() => {
@@ -56,8 +63,13 @@ export default function Navbar() {
             {/* DYNAMIC AUTH BUTTONS */}
             {user ? (
               <div className="flex items-center gap-4 ml-4">
-                <Link href="/wishlist" className="p-2 text-gray-400 hover:text-red-500 transition">
+                <Link href="/wishlist" className="p-2 text-gray-400 hover:text-red-500 transition relative">
                    <Heart className="w-5 h-5" />
+                   {wishlistCount > 0 && (
+                     <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
+                       {wishlistCount}
+                     </span>
+                   )}
                 </Link>
                 <div className="relative group">
                     <button className="flex items-center gap-2 text-sm font-bold hover:bg-gray-100 px-3 py-2 rounded-full transition">
@@ -84,14 +96,23 @@ export default function Navbar() {
             
             <Link href="/cart" className="p-2 relative">
                 <ShoppingBag className="w-5 h-5" />
-                {/* <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">0</span> */}
+                {cartCount > 0 && (
+                  <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
+                    {cartCount}
+                  </span>
+                )}
             </Link>
           </div>
 
           {/* MOBILE MENU TOGGLE */}
           <div className="md:hidden flex items-center gap-4">
-            <Link href="/cart">
+            <Link href="/cart" className="relative">
                 <ShoppingBag className="w-5 h-5" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
+                    {cartCount}
+                  </span>
+                )}
             </Link>
             <button onClick={() => setMenuOpen(!menuOpen)}>
               {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
