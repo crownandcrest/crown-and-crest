@@ -6,6 +6,7 @@ import { useRouter, useParams } from "next/navigation";
 import { Loader2, Save, ArrowLeft, UploadCloud, X, Trash2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { uploadToCloudinary } from "@/lib/cloudinary"; // Import Cloudinary helper
 
 export default function EditProductPage() {
     const supabase = createClient();
@@ -15,6 +16,7 @@ export default function EditProductPage() {
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [uploading, setUploading] = useState(false); // New state for upload spinner
     const [sizeCharts, setSizeCharts] = useState<any[]>([]); // 👈 Store charts
 
     const [formData, setFormData] = useState({
@@ -77,22 +79,19 @@ export default function EditProductPage() {
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) return;
-        setSaving(true);
-        const file = e.target.files[0];
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Math.random()}.${fileExt}`;
-        const filePath = `products/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage.from('product-images').upload(filePath, file);
-        if (uploadError) {
-            alert("Upload failed: " + uploadError.message);
-            setSaving(false);
-            return;
+        
+        setUploading(true); // Start spinner
+        try {
+            const file = e.target.files[0];
+            const url = await uploadToCloudinary(file); // Use Cloudinary Helper
+            
+            setFormData(prev => ({ ...prev, images: [...prev.images, url] }));
+        } catch (error) {
+            console.error(error);
+            alert("Upload failed. Check console for details.");
+        } finally {
+            setUploading(false); // Stop spinner
         }
-
-        const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
-        setFormData(prev => ({ ...prev, images: [...prev.images, publicUrl] }));
-        setSaving(false);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {

@@ -9,6 +9,7 @@ import { Loader2, MapPin, CreditCard, Banknote, ArrowRight, ShieldCheck } from "
 import { User as SupabaseUser } from "@supabase/supabase-js";
 import { Address, CartItem, VariantWithProduct, OrderInsert, OrderItemInsert } from "@/types";
 import RazorpayScript from "@/components/RazorpayScript";
+import CheckoutGuard from "@/components/checkout/CheckoutGuard"; // Import CheckoutGuard
 
 // Extend window interface for Razorpay
 declare global {
@@ -127,8 +128,7 @@ function CheckoutContent() {
     const activeTotal = checkoutItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
     // --- PAYMENT HANDLER ---
-    const handlePlaceOrder = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handlePlaceOrder = async () => {
         setProcessing(true);
 
         try {
@@ -342,15 +342,18 @@ function CheckoutContent() {
                             <div className="flex justify-between text-xl font-black pt-2 border-t mt-2"><span>Total</span><span>₹{activeTotal.toFixed(2)}</span></div>
                         </div>
 
-                        <button 
-                            onClick={handlePlaceOrder}
-                            disabled={processing} 
-                            className="w-full bg-black text-white mt-6 py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                            {processing ? <Loader2 className="animate-spin w-5 h-5" /> : <>
-                                {paymentMethod === 'cod' ? 'Place COD Order' : 'Pay Now'} <ArrowRight className="w-5 h-5" />
-                            </>}
-                        </button>
+                        {/* Checkout Guard Wrapper */}
+                        <CheckoutGuard onVerified={handlePlaceOrder}>
+                            <button 
+                                type="button" // Change type to button as the form submission is now handled by CheckoutGuard
+                                disabled={processing} 
+                                className="w-full bg-black text-white mt-6 py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {processing ? <Loader2 className="animate-spin w-5 h-5" /> : <>
+                                    {paymentMethod === 'cod' ? 'Place COD Order' : 'Pay Now'} <ArrowRight className="w-5 h-5" />
+                                </>}
+                            </button>
+                        </CheckoutGuard>
                     </div>
                 </div>
             </div>

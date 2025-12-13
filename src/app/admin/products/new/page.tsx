@@ -6,11 +6,13 @@ import { useRouter } from "next/navigation";
 import { Loader2, Save, ArrowLeft, UploadCloud, X } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { uploadToCloudinary } from "@/lib/cloudinary"; // 👈 IMPORT THIS
 
 export default function NewProductPage() {
     const supabase = createClient();
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    const [uploading, setUploading] = useState(false); // 👈 New state for upload spinner
     const [sizeCharts, setSizeCharts] = useState<any[]>([]);
 
     const [formData, setFormData] = useState({
@@ -21,10 +23,9 @@ export default function NewProductPage() {
         cost_price: "",
         stock: "",
         images: [] as string[],
-        size_chart_id: "" // 👈 New Field
+        size_chart_id: ""
     });
 
-    // Fetch Size Charts on Load
     useEffect(() => {
         const fetchCharts = async () => {
             const { data } = await supabase.from('size_charts').select('id, name');
@@ -33,37 +34,34 @@ export default function NewProductPage() {
         fetchCharts();
     }, []);
 
+    // 🛠️ FIXED UPLOAD FUNCTION
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) return;
-        setLoading(true);
-        const file = e.target.files[0];
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Math.random()}.${fileExt}`;
-        const filePath = `products/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage.from('product-images').upload(filePath, file);
-        if (uploadError) {
-            alert("Upload failed: " + uploadError.message);
-            setLoading(false);
-            return;
+        
+        setUploading(true); // Start spinner
+        try {
+            const file = e.target.files[0];
+            const url = await uploadToCloudinary(file); // 👈 Use Cloudinary Helper
+            
+            setFormData(prev => ({ ...prev, images: [...prev.images, url] }));
+        } catch (error) {
+            console.error(error);
+            alert("Upload failed. Check console for details.");
+        } finally {
+            setUploading(false); // Stop spinner
         }
-
-        const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
-        setFormData(prev => ({ ...prev, images: [...prev.images, publicUrl] }));
-        setLoading(false);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
-        // 1. Create Product
         const { data: product, error } = await supabase.from('products').insert({
             name: formData.name,
             description: formData.description,
             category: formData.category,
             images: formData.images,
-            size_chart_id: formData.size_chart_id || null // 👈 Save the link
+            size_chart_id: formData.size_chart_id || null
         }).select().single();
 
         if (error) {
@@ -72,12 +70,11 @@ export default function NewProductPage() {
             return;
         }
 
-        // 2. Create Default Variants (S, M, L, XL)
         const sizes = ["S", "M", "L", "XL"];
         const variants = sizes.map(size => ({
             product_id: product.id,
             size: size,
-            color: "Black", // Default color
+            color: "Black",
             stock_quantity: Number(formData.stock),
             selling_price: Number(formData.price),
             cost_price: Number(formData.cost_price)
@@ -124,8 +121,6 @@ export default function NewProductPage() {
                                     <option value="Accessories">Accessories</option>
                                 </select>
                             </div>
-                            
-                            {/* NEW: SIZE CHART SELECTOR */}
                             <div>
                                 <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Size Guide Profile</label>
                                 <select 
@@ -138,11 +133,10 @@ export default function NewProductPage() {
                                         <option key={chart.id} value={chart.id}>{chart.name}</option>
                                     ))}
                                 </select>
-                                <p className="text-[10px] text-gray-400 mt-1">Select a profile from Size Charts manager.</p>
                             </div>
                         </div>
                     </div>
-                </div>
+                </div >
 
                 {/* IMAGES */}
                 <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
@@ -156,10 +150,10 @@ export default function NewProductPage() {
                                 </button>
                             </div>
                         ))}
-                        <label className="aspect-[3/4] bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-black transition">
-                            {loading ? <Loader2 className="animate-spin text-gray-400" /> : <UploadCloud className="w-8 h-8 text-gray-400" />}
-                            <span className="text-xs font-bold text-gray-500 mt-2">Upload Image</span>
-                            <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} disabled={loading} />
+                        <label className={`aspect-[3/4] bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-black transition ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                            {uploading ? <Loader2 className="animate-spin text-gray-400" /> : <UploadCloud className="w-8 h-8 text-gray-400" />}
+                            <span className="text-xs font-bold text-gray-500 mt-2">{uploading ? "Uploading..." : "Upload Image"}</span>
+                            <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} disabled={uploading} />
                         </label>
                     </div>
                 </div>
@@ -184,7 +178,7 @@ export default function NewProductPage() {
                 </div>
 
                 <div className="flex justify-end pt-4">
-                    <button type="submit" disabled={loading} className="bg-black text-white px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-2 hover:bg-gray-800 transition shadow-xl disabled:opacity-50">
+                    <button type="submit" disabled={loading || uploading} className="bg-black text-white px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-2 hover:bg-gray-800 transition shadow-xl disabled:opacity-50">
                         {loading ? <Loader2 className="animate-spin" /> : <Save className="w-5 h-5" />}
                         Create Product
                     </button>

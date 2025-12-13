@@ -1,369 +1,179 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
-import { firebaseAuth } from "@/lib/firebase";
 import { createClient } from "@/lib/supabase/client";
-import { Loader2, Phone, Mail, Lock, User, ArrowRight } from "lucide-react";
+import { auth } from "@/lib/firebase/config"; 
+import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from "firebase/auth";
+import { firebaseLoginBridge } from "@/actions/auth"; // 👈 IMPORT THE BRIDGE
+import { Loader2, Smartphone, Mail, ArrowRight, CheckCircle, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-declare global {
-  interface Window {
-    recaptchaVerifier: any;
-    confirmationResult: any;
-  }
+function Toast({ message, type, onClose }: { message: string; type: 'success' | 'error'; onClose: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 4000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-[110] flex items-center gap-3 px-6 py-3 rounded-full shadow-2xl transition-all duration-500 animate-in slide-in-from-top-4 fade-in ${
+      type === 'success' ? 'bg-black text-white' : 'bg-red-500 text-white'
+    }`}>
+      {type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+      <span className="font-medium text-sm">{message}</span>
+    </div>
+  );
 }
 
 export default function LoginPage() {
-    const supabase = createClient();
-    const router = useRouter();
-    
-    // --- MODE SWITCHING ---
-    const [authMethod, setAuthMethod] = useState<"PHONE" | "EMAIL">("PHONE");
-    const [emailMode, setEmailMode] = useState<"LOGIN" | "SIGNUP">("LOGIN");
+  const supabase = createClient();
+  const router = useRouter();
 
-    // --- FORM STATES ---
-    const [loading, setLoading] = useState(false);
-    
-    // Phone State
-    const [phone, setPhone] = useState("");
-    const [otp, setOtp] = useState("");
-    const [phoneStep, setPhoneStep] = useState<"PHONE" | "OTP" | "PROFILE">("PHONE");
-    
-    // Email State
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [fullName, setFullName] = useState(""); // Used for both Phone Profile & Email Signup
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'MOBILE' | 'EMAIL'>('MOBILE');
+  const [view, setView] = useState<'LOGIN' | 'OTP'>('LOGIN');
+  
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const notify = (msg: string, type: 'success' | 'error') => setToast({ msg, type });
 
-    // --- RECAPTCHA SETUP (Only for Phone) ---
-    useEffect(() => {
-        if (authMethod === "PHONE" && phoneStep === "PHONE") {
-            // Clean up old instances
-            if (window.recaptchaVerifier) {
-                try { window.recaptchaVerifier.clear(); } catch(e) {}
-                window.recaptchaVerifier = null;
-            }
-
-            try {
-                window.recaptchaVerifier = new RecaptchaVerifier(firebaseAuth, 'recaptcha-container', {
-                    'size': 'invisible',
-                    'callback': () => console.log("Recaptcha verified"),
-                });
-            } catch (err) {
-                console.error("Recaptcha init error", err);
-            }
-        }
-    }, [authMethod, phoneStep]);
-
-
-    // ==============================
-    // 🟢 PHONE LOGIC
-    // ==============================
-    const handlePhoneSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-
-        try {
-            const cleanPhone = phone.replace(/\D/g, ''); 
-            const formatPh = `+91${cleanPhone}`;
-            
-            // 1. Send OTP
-            const confirmationResult = await signInWithPhoneNumber(firebaseAuth, formatPh, window.recaptchaVerifier);
-            window.confirmationResult = confirmationResult;
-            setPhoneStep("OTP");
-        } catch (error: any) {
-            console.error(error);
-            alert("Error sending SMS: " + error.message);
-            window.location.reload(); // Reload to reset captcha on error
-        }
-        setLoading(false);
-    };
-
-    const handleOtpVerify = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-        try {
-            // 2. Verify OTP
-            const result = await window.confirmationResult.confirm(otp);
-            const firebaseToken = await result.user.getIdToken();
-
-            // 3. Check with Backend (The Code we wrote earlier)
-            const response = await fetch('/api/auth/firebase-login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    idToken: firebaseToken,
-                    userData: { 
-                        fullName: fullName, 
-                        email: email // Send email if we collected it in Profile step
-                    } 
-                })
+  // RECAPTCHA
+  useEffect(() => {
+    if (view === 'LOGIN' && activeTab === 'MOBILE') {
+        if (!window.recaptchaVerifier) {
+            window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+                'size': 'invisible',
+                'callback': () => {}
             });
-
-            const data = await response.json();
-
-            if (data.requiresProfile) {
-                // Backend says: "New user! Ask for details."
-                setPhoneStep("PROFILE");
-                setLoading(false);
-                return; // Stop here, let user fill form
-            }
-
-            if (data.success) {
-                // Login Success! Set Session and Go.
-                if (data.token) {
-                    await supabase.auth.setSession({
-                        access_token: data.token,
-                        refresh_token: data.token, // This token acts as both for simplicity
-                    });
-                }
-                router.push("/shop");
-            } else {
-                alert("Login failed: " + data.error);
-            }
-
-        } catch (error: any) {
-            console.error(error);
-            alert("Invalid OTP");
         }
+    }
+  }, [view, activeTab]);
+
+  // 1. SEND SMS (FIREBASE)
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (phone.length < 10) return notify("Enter valid number", "error");
+
+    setLoading(true);
+    const fullPhone = `+91${phone}`;
+    const appVerifier = window.recaptchaVerifier;
+
+    try {
+        const result = await signInWithPhoneNumber(auth, fullPhone, appVerifier);
+        setConfirmationResult(result);
+        notify("OTP sent!", "success");
+        setView('OTP');
+    } catch (error: any) {
+        notify(error.message, "error");
+        if(window.recaptchaVerifier) window.recaptchaVerifier.clear();
+    } finally {
         setLoading(false);
-    };
+    }
+  };
 
-    const handleProfileSubmit = async (e: React.FormEvent) => {
-        // User filled Name/Email -> Retry verification logic to create account
-        handleOtpVerify(e); 
-    };
+  // 2. VERIFY & LOGIN (THE HYBRID BRIDGE)
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
 
+    try {
+        // A. Verify with Firebase
+        if (!confirmationResult) throw new Error("No OTP request found");
+        await confirmationResult.confirm(otp);
 
-    // ==============================
-    // 🔵 EMAIL LOGIC (Supabase Native)
-    // ==============================
-    const handleEmailAuth = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
+        // B. Call Server Bridge to get Supabase Session
+        const fullPhone = `+91${phone}`;
+        const result = await firebaseLoginBridge(fullPhone);
 
-        try {
-            if (emailMode === "SIGNUP") {
-                // --- SIGN UP ---
-                const { data, error } = await supabase.auth.signUp({
-                    email,
-                    password,
-                    options: {
-                        data: {
-                            full_name: fullName, // This triggers our DB function!
-                            role: 'customer'
-                        }
-                    }
-                });
-                
-                if (error) throw error;
-                alert("Account created! Logging you in...");
-                router.push("/shop");
-
-            } else {
-                // --- LOGIN ---
-                const { data, error } = await supabase.auth.signInWithPassword({
-                    email,
-                    password
-                });
-
-                if (error) throw error;
-                router.push("/shop");
-            }
-        } catch (error: any) {
-            alert(error.message);
+        if (result.error) {
+            throw new Error(result.error);
         }
+
+        if (result.url) {
+            notify("Login Successful! Redirecting...", "success");
+            // C. Auto-Click the Magic Link to start session
+            window.location.href = result.url; 
+        }
+
+    } catch (error: any) {
+        notify(error.message || "Invalid Code", "error");
         setLoading(false);
-    };
+    }
+  };
 
+  // 3. EMAIL LOGIN (STANDARD)
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) notify(error.message, "error");
+    else window.location.href = "/shop";
+    setLoading(false);
+  };
 
-    // ==============================
-    // 🎨 UI RENDER
-    // ==============================
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-            <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-gray-100">
-                
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl font-black mb-2 uppercase tracking-tight">Welcome</h1>
-                    <p className="text-gray-500 text-sm">Sign in to access your account</p>
-                </div>
+  return (
+    <div className="fixed inset-0 z-[100] bg-white flex items-center justify-center p-4">
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      <div className="absolute inset-0 bg-gray-50/50 -z-10" />
 
-                {/* TABS */}
-                <div className="flex bg-gray-100 p-1 rounded-xl mb-8">
-                    <button 
-                        onClick={() => setAuthMethod("PHONE")}
-                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${authMethod === "PHONE" ? "bg-white shadow-sm text-black" : "text-gray-400 hover:text-gray-600"}`}
-                    >
-                        Phone
-                    </button>
-                    <button 
-                        onClick={() => setAuthMethod("EMAIL")}
-                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${authMethod === "EMAIL" ? "bg-white shadow-sm text-black" : "text-gray-400 hover:text-gray-600"}`}
-                    >
-                        Email
-                    </button>
-                </div>
-
-                {/* --- PHONE FORM --- */}
-                {authMethod === "PHONE" && (
-                    <>
-                        <div id="recaptcha-container"></div>
-                        
-                        {phoneStep === "PHONE" && (
-                            <form onSubmit={handlePhoneSubmit} className="space-y-4">
-                                <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase">Mobile Number</label>
-                                    <div className="flex mt-1">
-                                        <div className="bg-gray-100 border border-gray-200 border-r-0 rounded-l-xl px-3 flex items-center">
-                                            <span className="font-bold text-gray-500 text-sm">+91</span>
-                                        </div>
-                                        <input 
-                                            type="tel" 
-                                            className="w-full p-3 border border-gray-200 rounded-r-xl outline-none focus:border-black font-medium"
-                                            placeholder="9876543210"
-                                            value={phone}
-                                            onChange={(e) => setPhone(e.target.value)}
-                                            maxLength={10}
-                                        />
-                                    </div>
-                                </div>
-                                <button disabled={loading} className="w-full bg-black text-white py-3.5 rounded-xl font-bold hover:bg-gray-900 transition flex items-center justify-center gap-2">
-                                    {loading ? <Loader2 className="animate-spin w-5 h-5"/> : <>Send OTP <ArrowRight className="w-4 h-4"/></>}
-                                </button>
-                            </form>
-                        )}
-
-                        {phoneStep === "OTP" && (
-                            <form onSubmit={handleOtpVerify} className="space-y-4">
-                                <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase">Enter OTP</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full p-3 mt-1 border border-gray-200 rounded-xl outline-none focus:border-black text-center text-2xl tracking-[0.5em] font-bold"
-                                        placeholder="123456"
-                                        maxLength={6}
-                                        value={otp}
-                                        onChange={(e) => setOtp(e.target.value)}
-                                    />
-                                </div>
-                                <button disabled={loading} className="w-full bg-black text-white py-3.5 rounded-xl font-bold hover:bg-gray-900 transition flex items-center justify-center gap-2">
-                                    {loading ? <Loader2 className="animate-spin w-5 h-5"/> : "Verify & Login"}
-                                </button>
-                                <button type="button" onClick={() => setPhoneStep("PHONE")} className="w-full text-xs text-gray-400 hover:text-black underline mt-2">
-                                    Wrong number? Change
-                                </button>
-                            </form>
-                        )}
-
-                        {phoneStep === "PROFILE" && (
-                            <form onSubmit={handleProfileSubmit} className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                                <div className="p-4 bg-blue-50 text-blue-600 text-xs font-medium rounded-xl mb-4">
-                                    Almost there! We just need your name to finish creating your account.
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase">Full Name</label>
-                                    <div className="relative mt-1">
-                                        <User className="absolute left-3 top-3.5 w-5 h-5 text-gray-300" />
-                                        <input 
-                                            type="text" 
-                                            className="w-full pl-10 p-3 border border-gray-200 rounded-xl outline-none focus:border-black"
-                                            placeholder="John Doe"
-                                            required
-                                            value={fullName}
-                                            onChange={(e) => setFullName(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase">Email (Optional)</label>
-                                    <div className="relative mt-1">
-                                        <Mail className="absolute left-3 top-3.5 w-5 h-5 text-gray-300" />
-                                        <input 
-                                            type="email" 
-                                            className="w-full pl-10 p-3 border border-gray-200 rounded-xl outline-none focus:border-black"
-                                            placeholder="john@example.com"
-                                            value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-                                <button disabled={loading} className="w-full bg-black text-white py-3.5 rounded-xl font-bold hover:bg-gray-900 transition flex items-center justify-center gap-2">
-                                    {loading ? <Loader2 className="animate-spin w-5 h-5"/> : "Complete Setup"}
-                                </button>
-                            </form>
-                        )}
-                    </>
-                )}
-
-                {/* --- EMAIL FORM --- */}
-                {authMethod === "EMAIL" && (
-                    <form onSubmit={handleEmailAuth} className="space-y-4">
-                        
-                        {emailMode === "SIGNUP" && (
-                            <div>
-                                <label className="text-xs font-bold text-gray-400 uppercase">Full Name</label>
-                                <div className="relative mt-1">
-                                    <User className="absolute left-3 top-3.5 w-5 h-5 text-gray-300" />
-                                    <input 
-                                        type="text" 
-                                        className="w-full pl-10 p-3 border border-gray-200 rounded-xl outline-none focus:border-black"
-                                        placeholder="John Doe"
-                                        required
-                                        value={fullName}
-                                        onChange={(e) => setFullName(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        <div>
-                            <label className="text-xs font-bold text-gray-400 uppercase">Email Address</label>
-                            <div className="relative mt-1">
-                                <Mail className="absolute left-3 top-3.5 w-5 h-5 text-gray-300" />
-                                <input 
-                                    type="email" 
-                                    className="w-full pl-10 p-3 border border-gray-200 rounded-xl outline-none focus:border-black"
-                                    placeholder="john@example.com"
-                                    required
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="text-xs font-bold text-gray-400 uppercase">Password</label>
-                            <div className="relative mt-1">
-                                <Lock className="absolute left-3 top-3.5 w-5 h-5 text-gray-300" />
-                                <input 
-                                    type="password" 
-                                    className="w-full pl-10 p-3 border border-gray-200 rounded-xl outline-none focus:border-black"
-                                    placeholder="••••••••"
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                />
-                            </div>
-                        </div>
-
-                        <button disabled={loading} className="w-full bg-black text-white py-3.5 rounded-xl font-bold hover:bg-gray-900 transition flex items-center justify-center gap-2">
-                            {loading ? <Loader2 className="animate-spin w-5 h-5"/> : (emailMode === "LOGIN" ? "Login" : "Create Account")}
-                        </button>
-
-                        <div className="text-center pt-2">
-                            <button 
-                                type="button"
-                                onClick={() => setEmailMode(emailMode === "LOGIN" ? "SIGNUP" : "LOGIN")}
-                                className="text-xs text-gray-500 font-bold hover:underline"
-                            >
-                                {emailMode === "LOGIN" ? "New here? Create an account" : "Already have an account? Login"}
-                            </button>
-                        </div>
-                    </form>
-                )}
-
-            </div>
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden relative">
+        <div className="pt-8 pb-6 text-center">
+            <h1 className="text-2xl font-black tracking-tighter uppercase">Crown & Crest</h1>
+            <p className="text-gray-400 text-xs font-bold mt-1 tracking-widest uppercase">Identity Secure Login</p>
         </div>
-    );
+
+        {view === 'LOGIN' && (
+          <div className="px-8 mb-6">
+            <div className="flex bg-gray-100 p-1 rounded-xl">
+              <button onClick={() => setActiveTab('MOBILE')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'MOBILE' ? 'bg-white shadow-sm text-black' : 'text-gray-400'}`}>
+                <Smartphone className="w-4 h-4" /> Mobile
+              </button>
+              <button onClick={() => setActiveTab('EMAIL')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'EMAIL' ? 'bg-white shadow-sm text-black' : 'text-gray-400'}`}>
+                <Mail className="w-4 h-4" /> Email
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="px-8 pb-8">
+          {view === 'LOGIN' ? (
+            activeTab === 'MOBILE' ? (
+                <form onSubmit={handleSendOtp} className="space-y-4">
+                  <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="font-bold text-gray-400">🇮🇳 +91</span>
+                      <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="98765 43210" className="bg-transparent w-full outline-none font-bold" autoFocus />
+                  </div>
+                  <div id="recaptcha-container"></div>
+                  <button disabled={loading} className="w-full bg-black text-white h-12 rounded-xl font-bold flex items-center justify-center gap-2">
+                    {loading ? <Loader2 className="animate-spin" /> : <>Continue Securely <ArrowRight className="w-4 h-4" /></>}
+                  </button>
+                </form>
+            ) : (
+                <form onSubmit={handleEmailAuth} className="space-y-4">
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none border focus:border-black" />
+                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none border focus:border-black" />
+                    <button disabled={loading} className="w-full bg-black text-white h-12 rounded-xl font-bold flex items-center justify-center gap-2">
+                        {loading ? <Loader2 className="animate-spin" /> : "Login"}
+                    </button>
+                </form>
+            )
+          ) : (
+            <form onSubmit={handleVerifyOtp} className="space-y-6">
+               <div className="text-center"><h3>Verify Mobile</h3></div>
+               <input type="text" value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="123456" className="w-full text-center text-3xl font-black py-4 border-b-2 outline-none" maxLength={6} autoFocus />
+               <button disabled={loading} className="w-full bg-black text-white h-12 rounded-xl font-bold flex items-center justify-center gap-2">
+                  {loading ? <Loader2 className="animate-spin" /> : "Verify & Login"}
+               </button>
+            </form>
+          )}
+          {view === 'LOGIN' && <div className="mt-6 text-center"><Link href="/" className="text-sm font-bold text-gray-400">Cancel</Link></div>}
+        </div>
+      </div>
+    </div>
+  );
 }
