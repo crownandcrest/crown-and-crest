@@ -10,61 +10,28 @@ import VariantSelector from "@/components/VariantSelector";
 import SizeChartModal from "@/components/SizeChartModal";
 import AddToCartBar from "@/components/AddToCartBar";
 import Reviews from "@/components/Reviews";
-import { useCart } from "@/lib/cart";
+import { useCart } from "@/context/CartContext";
+import { Product, Variant } from "@/types";
 
-type Variant = {
-  id: string;
-  color?: string;
-  colorName?: string;
-  images: string[];
-  price: number;
-  compareAtPrice?: number;
-  sku?: string;
-  stock: number;
-  sizes?: { size: string; stock: number }[];
-};
-
-type Product = {
-  id: string;
-  slug: string;
-  title: string;
-  shortDescription: string;
-  description: string;
-  highlights: string[];
-  material: string;
-  care: string;
-  rating: number;
-  reviewsCount: number;
-  variants: Variant[];
-  related: { id: string; title: string; slug: string; price: number; image: string }[];
-};
-
-export default function ClientProductPage({ product }: { product: Product }) {
+export default function ClientProductPage({ product }: { product: Product & { variants: Variant[], related: any[] } }) {
   const router = useRouter();
   const { addToCart } = useCart();
   const [variantId, setVariantId] = useState(product.variants[0].id);
   const variant = product.variants.find((v) => v.id === variantId)!;
-  const [selectedSize, setSelectedSize] = useState<string | null>(variant.sizes?.[0]?.size ?? null);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [sizeChartOpen, setSizeChartOpen] = useState(false);
   const [pincode, setPincode] = useState("");
-  const inStock = variant.stock > 0 && (selectedSize ? variant.sizes?.some((s) => s.size === selectedSize && s.stock > 0) : true);
+  const inStock = variant.stock_quantity > 0;
 
-  const price = variant.price;
-  const discount = variant.compareAtPrice && variant.compareAtPrice > variant.price ? Math.round(((variant.compareAtPrice - variant.price) / variant.compareAtPrice) * 100) : 0;
+  const price = variant.selling_price;
+  const discount = variant.cost_price && variant.cost_price > variant.selling_price ? Math.round(((variant.cost_price - variant.selling_price) / variant.cost_price) * 100) : 0;
 
   const onAddToCart = () => {
-    addToCart(
-      {
-        id: `${product.id}-${variant.id}-${selectedSize ?? "one"}`,
-        slug: product.slug,
-        title: product.title,
-        price,
-        currency: "INR", // Assuming INR from product data
-        images: variant.images,
-      },
-      qty
-    );
+    const currentVariant = product.variants.find(v => v.id === variantId);
+    if (currentVariant) {
+        addToCart(product.id, currentVariant.id, qty);
+    }
   };
 
   const onBuyNow = () => {
@@ -95,24 +62,24 @@ export default function ClientProductPage({ product }: { product: Product }) {
     <>
       <div className="max-w-6xl mx-auto px-4 py-8 grid md:grid-cols-2 gap-8">
         <div>
-          <ProductGallery images={variant.images} />
+          <ProductGallery images={product.images || []} />
         </div>
 
         <div>
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-3xl font-semibold text-gray-900">{product.title}</h1>
-              <div className="text-sm text-gray-600 mt-1">{product.shortDescription}</div>
+              <h1 className="text-3xl font-semibold text-gray-900">{product.name}</h1>
+              <div className="text-sm text-gray-600 mt-1">{product.description}</div>
               <div className="flex items-center gap-2 mt-3">
-                <div className="flex items-center">{renderStars(product.rating)}</div>
-                <span className="text-sm text-gray-500 ml-2">({product.reviewsCount} reviews)</span>
+                <div className="flex items-center">{renderStars(5)}</div>
+                <span className="text-sm text-gray-500 ml-2">(0 reviews)</span>
               </div>
             </div>
             <div className="text-right">
               <div className="text-2xl font-bold text-gray-900">₹{price}</div>
               {discount > 0 && (
                 <>
-                  <div className="text-sm text-gray-500 line-through">₹{variant.compareAtPrice}</div>
+                  <div className="text-sm text-gray-500 line-through">₹{variant.cost_price}</div>
                   <div className="text-sm font-semibold text-green-600">{discount}% OFF</div>
                 </>
               )}
@@ -172,8 +139,8 @@ export default function ClientProductPage({ product }: { product: Product }) {
             </div>
             <div className="flex justify-between">
               <span>Stock:</span>
-              <span className={variant.stock > 0 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-                {variant.stock > 0 ? `${variant.stock} in stock` : "Out of stock"}
+              <span className={variant.stock_quantity > 0 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                {variant.stock_quantity > 0 ? `${variant.stock_quantity} in stock` : "Out of stock"}
               </span>
             </div>
 
@@ -200,7 +167,7 @@ export default function ClientProductPage({ product }: { product: Product }) {
             <div>
               <h4 className="font-semibold text-gray-900 mb-2">Highlights</h4>
               <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1">
-                {product.highlights.map((h) => (
+                {(product.description || "").split("\\n").map((h: string) => (
                   <li key={h}>{h}</li>
                 ))}
               </ul>
@@ -208,8 +175,8 @@ export default function ClientProductPage({ product }: { product: Product }) {
 
             <div>
               <h4 className="font-semibold text-gray-900 mb-2">Material & Care</h4>
-              <div className="text-sm text-gray-700">{product.material}</div>
-              <div className="text-sm text-gray-500 mt-1">{product.care}</div>
+              <div className="text-sm text-gray-700">{product.name}</div>
+              <div className="text-sm text-gray-500 mt-1">Machine wash</div>
             </div>
 
             <div className="bg-green-50 border border-green-200 rounded-lg p-3">
@@ -242,7 +209,6 @@ export default function ClientProductPage({ product }: { product: Product }) {
         </div>
       </div>
 
-      {/* Mobile sticky add bar */}
       <AddToCartBar
         productId={product.id}
         variantId={variant.id}
@@ -250,9 +216,9 @@ export default function ClientProductPage({ product }: { product: Product }) {
         price={price}
         disabled={!inStock}
         onBuyNow={onBuyNow}
-        slug={product.slug}
-        title={product.title}
-        images={variant.images}
+        slug={product.id}
+        title={product.name}
+        images={product.images || []}
       />
 
       <SizeChartModal open={sizeChartOpen} onClose={() => setSizeChartOpen(false)} />

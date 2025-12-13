@@ -1,5 +1,5 @@
 import React from "react";
-import { supabase } from "@/lib/supabase";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import ProductCard from "./ProductCard";
 
 export default async function YouMightAlsoLike({ 
@@ -9,6 +9,7 @@ export default async function YouMightAlsoLike({
   currentProductId: string, 
   category: string 
 }) {
+  const supabase = await createServerSupabaseClient();
   // Fetch 4 products from same category, excluding current one
   const { data: relatedProducts } = await supabase
     .from("products")

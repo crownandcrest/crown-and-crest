@@ -1,14 +1,14 @@
 // src/components/cart/CartDrawer.tsx
 "use client";
 
-import { useCart } from "@/context/CartContext";
+import { useCartDetails } from "@/lib/hooks/useCartDetails";
 import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect } from "react";
 
 export default function CartDrawer() {
-    const { cart, isCartOpen, toggleCart, removeFromCart, updateQuantity, cartTotal } = useCart();
+    const { cart, isCartOpen, toggleCart, removeFromCart, updateQuantity, cartTotal } = useCartDetails();
 
     // Disable body scroll when cart is open
     useEffect(() => {
@@ -55,7 +55,7 @@ export default function CartDrawer() {
                         </div>
                     ) : (
                         cart.map((item) => (
-                            <div key={item.id} className="flex gap-4">
+                            <div key={`${item.productId}-${item.variantId}`} className="flex gap-4">
                                 {/* Image */}
                                 <div className="relative w-20 h-24 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-100">
                                     <Image src={item.image} alt={item.name} fill className="object-cover" />
@@ -66,17 +66,16 @@ export default function CartDrawer() {
                                     <div>
                                         <div className="flex justify-between items-start">
                                             <h3 className="font-bold text-gray-900 line-clamp-1">{item.name}</h3>
-                                            <button onClick={() => removeFromCart(item.id)} className="text-gray-400 hover:text-red-500 transition">
+                                            <button onClick={() => removeFromCart(item.productId, item.variantId)} className="text-gray-400 hover:text-red-500 transition">
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
                                         </div>
-                                        <p className="text-sm text-gray-500">Size: {item.size} • {item.color}</p>
                                     </div>
 
                                     <div className="flex justify-between items-center">
                                         <div className="flex items-center border border-gray-200 rounded-lg">
                                             <button 
-                                                onClick={() => updateQuantity(item.id, -1)}
+                                                onClick={() => updateQuantity(item.productId, item.variantId, item.quantity - 1)}
                                                 className="p-1.5 hover:bg-gray-50 text-gray-600 disabled:opacity-30"
                                                 disabled={item.quantity <= 1}
                                             >
@@ -84,9 +83,8 @@ export default function CartDrawer() {
                                             </button>
                                             <span className="w-8 text-center text-sm font-bold">{item.quantity}</span>
                                             <button 
-                                                onClick={() => updateQuantity(item.id, 1)}
+                                                onClick={() => updateQuantity(item.productId, item.variantId, item.quantity + 1)}
                                                 className="p-1.5 hover:bg-gray-50 text-gray-600 disabled:opacity-30"
-                                                disabled={item.quantity >= item.maxStock}
                                             >
                                                 <Plus className="w-3 h-3" />
                                             </button>

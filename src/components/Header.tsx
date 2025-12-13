@@ -1,11 +1,11 @@
 "use client";
 import Link from "next/link";
 import React, { useState, useEffect } from "react";
-import { useCart } from "../lib/cart"; // Keeping your existing cart logic
+import { useCart } from "@/context/CartContext"; 
 import { Search, ShoppingCart, User, Menu, X } from "lucide-react"; // Ensure you have lucide-react installed
 
 export default function Header(): React.JSX.Element {
-  const { cart } = useCart();
+  const { getCartCount } = useCart();
   const [isClient, setIsClient] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -14,7 +14,7 @@ export default function Header(): React.JSX.Element {
     setIsClient(true);
   }, []);
 
-  const totalItems = cart.reduce((s, i) => s + i.qty, 0);
+  const totalItems = getCartCount();
 
   return (
     <>

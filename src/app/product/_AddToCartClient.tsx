@@ -1,15 +1,14 @@
 // src/app/product/_AddToCartClient.tsx
 "use client";
 import React from "react";
-import { useCart } from "../../lib/cart";
+import { useCart } from "@/context/CartContext";
 
 export default function AddToCart({ product }: { product: any }) {
+  const { addToCart } = useCart();
+
   const handleAddToCart = () => {
-    const productToAdd = {
-      ...product,
-      images: product.images || [],
-    };
-    addToCart(productToAdd, 1);
+    // Assuming product has an 'id' for productId and we can use it as variantId for simplicity
+    addToCart(product.id, product.id, 1);
   };
 
   const handleBuyNow = () => {

@@ -1,13 +1,13 @@
 "use client";
 
-import { useCart } from "@/context/CartContext"; 
+import { useCartDetails, DetailedCartItem } from "@/lib/hooks/useCartDetails"; 
 import { createClient } from '@/lib/supabase/client';
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Loader2, MapPin, CreditCard, Banknote, ArrowRight, ShieldCheck } from "lucide-react";
 import { User as SupabaseUser } from "@supabase/supabase-js";
-import { Address, CartItem, VariantWithProduct, OrderInsert, OrderItemInsert } from "@/types";
+import { Address, VariantWithProduct, OrderInsert, OrderItemInsert } from "@/types";
 import RazorpayScript from "@/components/RazorpayScript";
 import CheckoutGuard from "@/components/checkout/CheckoutGuard"; // Import CheckoutGuard
 
@@ -28,7 +28,7 @@ export default function CheckoutPage() {
 }
 
 function CheckoutContent() {
-    const { cart } = useCart();
+    const { cart: cartFromHook, cartTotal } = useCartDetails();
     const supabase = createClient();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -38,7 +38,7 @@ function CheckoutContent() {
     const directVariantId = searchParams.get('variant_id');
     const directQty = Number(searchParams.get('quantity') || 1);
 
-    const [checkoutItems, setCheckoutItems] = useState<CartItem[]>([]);
+    const [checkoutItems, setCheckoutItems] = useState<DetailedCartItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
     
@@ -105,27 +105,25 @@ function CheckoutContent() {
 
                 if (directVariant) {
                     setCheckoutItems([{
-                        id: directVariant.id,
                         productId: directVariant.product_id,
                         variantId: directVariant.id,
                         name: directVariant.product?.name || 'N/A', 
                         price: directVariant.selling_price,
                         image: directVariant.product?.images?.[0] || '',
-                        size: directVariant.size || '',
-                        color: directVariant.color || '',
                         quantity: directQty,
-                        maxStock: directVariant.stock_quantity || 0,
                     }]);
                 }
             } else {
-                setCheckoutItems(cart);
+                setCheckoutItems(cartFromHook);
             }
             setLoading(false);
         };
         init();
-    }, [isDirectBuy, directVariantId, directQty, cart, router, supabase]);
+    }, [isDirectBuy, directVariantId, directQty, cartFromHook, router, supabase]);
 
-    const activeTotal = checkoutItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const activeTotal = isDirectBuy 
+        ? checkoutItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+        : cartTotal;
 
     // --- PAYMENT HANDLER ---
     const handlePlaceOrder = async () => {
@@ -324,13 +322,12 @@ function CheckoutContent() {
                         <h2 className="text-xl font-black uppercase mb-6">Order Summary</h2>
                         <div className="space-y-4 mb-6 max-h-80 overflow-y-auto">
                             {checkoutItems.map((item) => (
-                                <div key={item.id} className="flex gap-4">
+                                <div key={`${item.productId}-${item.variantId}`} className="flex gap-4">
                                     <div className="relative w-16 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                                         <Image src={item.image} alt={item.name} fill className="object-cover" />
                                     </div>
                                     <div className="flex-1">
                                         <h3 className="font-bold text-sm text-gray-900 line-clamp-1">{item.name}</h3>
-                                        <p className="text-xs text-gray-500">{item.size} • {item.color}</p>
                                         <div className="flex justify-between mt-1"><span className="text-xs">Qty: {item.quantity}</span><span className="font-bold text-sm">₹{(item.price * item.quantity).toFixed(2)}</span></div>
                                     </div>
                                 </div>

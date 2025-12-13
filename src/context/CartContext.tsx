@@ -5,27 +5,19 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 
 // Define the shape of a Cart Item
 export interface CartItem {
-    id: string; // Unique ID (product_id + variant_id)
     productId: string;
     variantId: string;
-    name: string;
-    price: number;
-    image: string;
-    size: string;
-    color: string;
     quantity: number;
-    maxStock: number;
 }
 
 interface CartContextType {
     cart: CartItem[];
     isCartOpen: boolean;
     toggleCart: () => void;
-    addToCart: (item: CartItem) => void;
-    removeFromCart: (id: string) => void;
-    updateQuantity: (id: string, delta: number) => void;
-    cartTotal: number;
-    cartCount: number;
+    addToCart: (productId: string, variantId: string, quantity: number) => void;
+    removeFromCart: (productId: string, variantId: string) => void;
+    updateQuantity: (productId: string, variantId: string, newQuantity: number) => void;
+    getCartCount: () => number;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -59,44 +51,43 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     const toggleCart = () => setIsCartOpen(prev => !prev);
 
-    const addToCart = (newItem: CartItem) => {
+    const addToCart = (productId: string, variantId: string, quantity: number) => {
         setCart(prev => {
-            const existing = prev.find(item => item.id === newItem.id);
+            const existing = prev.find(item => item.productId === productId && item.variantId === variantId);
             if (existing) {
-                // If item exists, increase quantity (check stock limit)
+                // If item exists, increase quantity
                 return prev.map(item => 
-                    item.id === newItem.id 
-                        ? { ...item, quantity: Math.min(item.quantity + newItem.quantity, item.maxStock) }
+                    item.productId === productId && item.variantId === variantId
+                        ? { ...item, quantity: item.quantity + quantity }
                         : item
                 );
             }
             // Else, add new item
-            return [...prev, newItem];
+            return [...prev, { productId, variantId, quantity }];
         });
         setIsCartOpen(true); // Auto-open drawer
     };
 
-    const removeFromCart = (itemId: string) => {
-        setCart(prev => prev.filter(item => item.id !== itemId));
+    const removeFromCart = (productId: string, variantId: string) => {
+        setCart(prev => prev.filter(item => item.productId !== productId || item.variantId !== variantId));
     };
 
-    const updateQuantity = (itemId: string, delta: number) => {
+    const updateQuantity = (productId: string, variantId: string, newQuantity: number) => {
         setCart(prev => prev.map(item => {
-            if (item.id === itemId) {
-                const newQty = item.quantity + delta;
-                return { ...item, quantity: Math.min(Math.max(1, newQty), item.maxStock) };
+            if (item.productId === productId && item.variantId === variantId) {
+                return { ...item, quantity: newQuantity };
             }
             return item;
         }));
     };
 
-    // Derived State
-    const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+    const getCartCount = () => {
+        return cart.reduce((sum, item) => sum + item.quantity, 0);
+    }
 
     return (
         <CartContext.Provider value={{ 
-            cart, isCartOpen, toggleCart, addToCart, removeFromCart, updateQuantity, cartTotal, cartCount 
+            cart, isCartOpen, toggleCart, addToCart, removeFromCart, updateQuantity, getCartCount
         }}>
             {children}
         </CartContext.Provider>

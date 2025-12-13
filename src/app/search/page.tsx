@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, Suspense } from "react";
-import { supabase } from "@/lib/supabase"; 
+import { createClient } from "@/lib/supabase/client";
 import Filters from "@/components/Filters";
 import ProductCard from "@/components/ProductCard";
 import { ChevronRight } from "lucide-react";
@@ -31,6 +31,7 @@ type RpcParams = {
 };
 
 function SearchContent() {
+  const supabase = createClient();
   const [products, setProducts] = useState<Product[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -121,7 +122,7 @@ function SearchContent() {
     }
 
     fetchProducts();
-  }, [searchParams]);
+  }, [searchParams, supabase]);
 
   const currentPage = searchParams?.get("page") ? Math.max(1, Number(searchParams?.get("page"))) : 1;
   const totalPages = Math.ceil(totalCount / 12);

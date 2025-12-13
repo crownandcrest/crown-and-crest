@@ -3,6 +3,7 @@ import { Database } from "@/lib/database.types";
 export type Product = Database['public']['Tables']['products']['Row'] & {
     size_chart_id?: string | null;
     size_chart?: SizeChart; // For joined queries
+    variants: Variant[];
 };
 export type ProductUpdate = Database['public']['Tables']['products']['Update'];
 export type Variant = Database['public']['Tables']['product_variants']['Row'];
@@ -47,20 +48,6 @@ export interface SizeChart {
 }
 
 // 2. Complex Types (Joins)
-
-export interface CartItem {
-    id: string;
-    productId: string;
-    variantId: string;
-    name: string;
-    price: number;
-    image: string;
-    size: string;
-    color: string;
-    quantity: number;
-    maxStock: number;
-}
-
 export interface VariantWithProduct extends Variant {
     product: {
         name: string;

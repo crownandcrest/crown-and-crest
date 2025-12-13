@@ -109,18 +109,7 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
         if (!selectedSize) return alert("Please select a size.");
         if (!activeVariant || currentStock === 0) return alert("Out of stock.");
         
-        addToCart({
-            id: activeVariant.id,
-            productId: product.id,
-            variantId: activeVariant.id,
-            name: product.name,
-            price: activeVariant.selling_price,
-            image: product.images?.[0] || "",
-            size: activeVariant.size,
-            color: activeVariant.color,
-            quantity: quantity,
-            maxStock: activeVariant.stock_quantity
-        });
+        addToCart(product.id, activeVariant.id, quantity);
         alert("Added to Cart!"); 
     };
 

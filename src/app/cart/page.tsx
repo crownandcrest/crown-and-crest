@@ -3,11 +3,10 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Trash2, Minus, Plus, ArrowRight, Tag } from "lucide-react";
-import { useCart } from "@/context/CartContext";
+import { useCartDetails } from "@/lib/hooks/useCartDetails";
 
 export default function CartPage() {
-  // Use the real cart data instead of INITIAL_CART
-  const { cart, removeFromCart, updateQuantity, cartTotal } = useCart();
+  const { cart, removeFromCart, updateQuantity, cartTotal } = useCartDetails();
 
   // Discount Logic (20%)
   const discount = cartTotal * 0.20;
@@ -31,7 +30,7 @@ export default function CartPage() {
         {/* LEFT COLUMN: Real Cart Items */}
         <div className="flex-1 border border-gray-200 rounded-[20px] p-4 md:p-6">
           {cart.map((item) => (
-            <div key={`${item.id}-${item.size}-${item.color}`} className="flex gap-4 py-4 border-b border-gray-200 last:border-0">
+            <div key={`${item.productId}-${item.variantId}`} className="flex gap-4 py-4 border-b border-gray-200 last:border-0">
                 
                 <div className="w-24 h-24 bg-[#F0EEED] rounded-[10px] overflow-hidden relative flex-shrink-0">
                     <Image src={item.image} fill className="object-cover" alt={item.name} />
@@ -41,10 +40,8 @@ export default function CartPage() {
                     <div className="flex justify-between items-start">
                         <div>
                             <h3 className="font-bold text-base md:text-xl text-black mb-1">{item.name}</h3>
-                            <p className="text-sm text-black">Size: <span className="text-gray-500 font-normal">{item.size}</span></p>
-                            <p className="text-sm text-black">Color: <span className="text-gray-500 font-normal">{item.color}</span></p>
                         </div>
-                        <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700">
+                        <button onClick={() => removeFromCart(item.productId, item.variantId)} className="text-red-500 hover:text-red-700">
                             <Trash2 className="w-5 h-5" />
                         </button>
                     </div>
@@ -52,9 +49,9 @@ export default function CartPage() {
                     <div className="flex justify-between items-end">
                         <span className="text-xl md:text-2xl font-bold text-black">₹{item.price}</span>
                         <div className="bg-[#F0F0F0] rounded-full flex items-center px-3 py-1 gap-4">
-                            <button onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))} className="p-1"><Minus className="w-4 h-4" /></button>
+                            <button onClick={() => updateQuantity(item.productId, item.variantId, Math.max(1, item.quantity - 1))} className="p-1"><Minus className="w-4 h-4" /></button>
                             <span className="font-medium text-sm">{item.quantity}</span>
-                            <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="p-1"><Plus className="w-4 h-4" /></button>
+                            <button onClick={() => updateQuantity(item.productId, item.variantId, item.quantity + 1)} className="p-1"><Plus className="w-4 h-4" /></button>
                         </div>
                     </div>
                 </div>

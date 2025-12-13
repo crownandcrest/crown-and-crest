@@ -30,18 +30,7 @@ export default function ProductCard({ product }: { product: any }) {
         e.preventDefault();
         const variant = variants.find((v: any) => v.size === size);
         if (variant) {
-            addToCart({
-                id: variant.id,
-                productId: product.id,
-                variantId: variant.id,
-                name: product.name,
-                price: variant.selling_price,
-                image: product.images?.[0] || "",
-                size: variant.size,
-                color: variant.color,
-                quantity: 1,
-                maxStock: variant.stock_quantity
-            });
+            addToCart(product.id, variant.id, 1);
             setIsQuickAddOpen(false);
             alert("Added to Cart");
         }

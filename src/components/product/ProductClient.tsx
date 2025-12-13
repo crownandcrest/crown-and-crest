@@ -6,24 +6,7 @@ import { Star, ShoppingBag, Minus, Plus, Check, Zap, ShieldCheck, Truck, Lock } 
 import Image from 'next/image';
 import { useCart } from '@/context/CartContext';
 import { useRouter } from 'next/navigation';
-
-// ... (Interfaces remain the same)
-interface Variant {
-    id: string;
-    size: string;
-    color: string;
-    selling_price: number;
-    stock_quantity: number;
-}
-
-interface Product {
-    id: string;
-    name: string;
-    description: string;
-    images: string[];
-    category: string;
-    fit_type: 'Regular' | 'Oversized' | 'Slim';
-}
+import { Product, Variant } from '@/types';
 
 interface UserMeasurements {
     height_cm?: number;
@@ -33,12 +16,10 @@ interface UserMeasurements {
 }
 
 export default function ProductClient({ 
-    product, 
-    variants, 
+    product,
     measurements 
 }: { 
     product: Product, 
-    variants: Variant[], 
     measurements?: UserMeasurements | null
 }) {
     const { addToCart } = useCart();
@@ -46,19 +27,19 @@ export default function ProductClient({
     
     // State
     const [selectedSize, setSelectedSize] = useState<string>('');
-    const [selectedColor, setSelectedColor] = useState<string>(variants[0]?.color || '');
+    const [selectedColor, setSelectedColor] = useState<string>(product.variants[0]?.color || '');
     const [quantity, setQuantity] = useState(1);
     const [mainImage, setMainImage] = useState(product.images?.[0] || '');
     const [error, setError] = useState('');
 
     // ... (Sorting logic remains the same)
-    const uniqueColors = Array.from(new Set(variants.map(v => v.color)));
+    const uniqueColors = Array.from(new Set(product.variants.map(v => v.color)));
     const sizeOrder = ['S', 'M', 'L', 'XL', 'XXL', '3XL'];
-    const allSizes = Array.from(new Set(variants.map(v => v.size)))
+    const allSizes = Array.from(new Set(product.variants.map(v => v.size)))
         .sort((a, b) => sizeOrder.indexOf(a) - sizeOrder.indexOf(b));
-    const activeVariant = variants.find(v => v.size === selectedSize && v.color === selectedColor);
-    const availableSizes = variants.filter(v => v.color === selectedColor).map(v => v.size);
-    const price = activeVariant ? activeVariant.selling_price : variants[0]?.selling_price;
+    const activeVariant = product.variants.find(v => v.size === selectedSize && v.color === selectedColor);
+    const availableSizes = product.variants.filter(v => v.color === selectedColor).map(v => v.size);
+    const price = activeVariant ? activeVariant.selling_price : product.variants[0]?.selling_price;
 
     // --- FIT LOGIC ---
     const getRecommendedSize = () => {
@@ -91,18 +72,7 @@ export default function ProductClient({
 
     const handleAddToCart = () => {
         if (!validateSelection() || !activeVariant) return;
-        addToCart({
-            id: activeVariant.id,
-            productId: product.id,
-            variantId: activeVariant.id,
-            name: product.name,
-            price: activeVariant.selling_price,
-            image: product.images?.[0] || '',
-            size: activeVariant.size,
-            color: activeVariant.color,
-            quantity: quantity,
-            maxStock: activeVariant.stock_quantity
-        });
+        addToCart(product.id, activeVariant.id, quantity);
     };
 
     // ⚡ BUY NOW LOGIC (Direct Checkout)
