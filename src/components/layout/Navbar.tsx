@@ -14,10 +14,10 @@ export default function Navbar() {
   const router = useRouter();
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { getWishlistCount } = useWishlist();
+  const { wishlist } = useWishlist();
   const { getCartCount } = useCart();
 
-  const wishlistCount = getWishlistCount();
+  const wishlistCount = wishlist.length;
   const cartCount = getCartCount();
 
   // 1. LISTEN TO AUTH STATE

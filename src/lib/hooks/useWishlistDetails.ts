@@ -11,7 +11,6 @@ export interface DetailedWishlistItem {
     name: string;
     price: number;
     image: string;
-    slug: string;
 }
 
 export function useWishlistDetails() {
@@ -29,7 +28,6 @@ export function useWishlistDetails() {
                 name: product.title,
                 price: product.price,
                 image: product.images[0], // Assuming the first image is the main one
-                slug: product.slug,
             };
         }).filter((item): item is DetailedWishlistItem => item !== null);
     }, [wishlist]);

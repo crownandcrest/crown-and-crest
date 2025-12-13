@@ -295,6 +295,9 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
 
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 lg:hidden z-40 flex gap-4">
                  <button className="p-4 border-2 border-gray-200 rounded-full text-gray-500"><Share2 className="w-5 h-5" /></button>
+                 <button onClick={handleWishlistToggle} className="p-4 border-2 border-gray-200 rounded-full hover:border-black transition text-gray-500 hover:text-black">
+                    <Heart className={`w-5 h-5 ${isWishlisted ? 'text-red-500 fill-current' : ''}`} />
+                 </button>
                  <button onClick={handleAddToCart} disabled={!selectedSize || currentStock === 0} className="flex-1 bg-black text-white text-sm font-bold uppercase tracking-wider py-4 rounded-full transition disabled:opacity-50">
                      {currentStock === 0 ? "Out of Stock" : !selectedSize ? "Select Size" : `Add - ₹${price.toLocaleString()}`}
                 </button>

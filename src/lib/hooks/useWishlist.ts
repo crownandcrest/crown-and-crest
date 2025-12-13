@@ -1,19 +1,16 @@
-// src/lib/hooks/useWishlist.ts
 "use client";
 
-import { useWishlist as useWishlistFromContext } from '@/context/WishlistContext';
+import { useContext } from "react";
+import { WishlistContext } from "@/context/WishlistContext";
 
-export const useWishlist = () => {
-    try {
-        return useWishlistFromContext();
-    } catch {
-        // This will happen on the server, so we provide a mock implementation.
-        return {
-            wishlist: [],
-            addToWishlist: () => {},
-            removeFromWishlist: () => {},
-            isInWishlist: () => false,
-            getWishlistCount: () => 0,
-        };
-    }
-};
+export function useWishlist() {
+  const context = useContext(WishlistContext);
+
+  if (!context) {
+    throw new Error(
+      "useWishlist must be used within a WishlistProvider"
+    );
+  }
+
+  return context;
+}
