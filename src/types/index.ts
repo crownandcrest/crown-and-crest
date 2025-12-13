@@ -9,6 +9,7 @@ export type ProductUpdate = Database['public']['Tables']['products']['Update'];
 export type Variant = Database['public']['Tables']['product_variants']['Row'];
 export type OrderItem = Database['public']['Tables']['order_items']['Row'];
 export type OrderItemInsert = Database['public']['Tables']['order_items']['Insert'];
+export type OrderInsert = Database['public']['Tables']['orders']['Insert'];
 export type OrderRequest = Database['public']['Tables']['order_requests']['Row'];
 export type OrderRequestInsert = Database['public']['Tables']['order_requests']['Insert'];
 

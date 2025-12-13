@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Loader2, MapPin, CreditCard, Banknote, ArrowRight, ShieldCheck } from "lucide-react";
 import { User as SupabaseUser } from "@supabase/supabase-js";
-import { Address, VariantWithProduct, OrderInsert, OrderItemInsert } from "@/types";
+import { Address, VariantWithProduct, OrderItemInsert, OrderInsert } from "@/types";
 import RazorpayScript from "@/components/RazorpayScript";
 import CheckoutGuard from "@/components/checkout/CheckoutGuard"; // Import CheckoutGuard
 

@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Image from "next/image";
 import { useCart } from "@/context/CartContext";
-import { useWishlist } from "@/lib/hooks/useWishlist";
+
 import { Heart, Share2, Ruler, User, Clock, MapPin, Loader2 } from "lucide-react";
 import ProductCard from "@/components/shop/ProductCard";
 import Link from "next/link";
@@ -18,8 +18,6 @@ interface ProductDetailsClientProps {
 
 export default function ProductDetailsClient({ product, relatedProducts, sizeChart, userProfiles = [] }: ProductDetailsClientProps) {
     const { addToCart } = useCart();
-    const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-    
     const colors = useMemo(() => {
         return Array.from(new Set(product.product_variants.map((v: ProductVariant) => v.color)));
     }, [product.product_variants]);
@@ -33,15 +31,7 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
     const [deliveryEstimate, setDeliveryEstimate] = useState<string | null>(null);
     const [isCheckingPincode, setIsCheckingPincode] = useState(false);
 
-    const isWishlisted = isInWishlist(product.id);
 
-    const handleWishlistToggle = () => {
-        if (isWishlisted) {
-            removeFromWishlist(product.id);
-        } else {
-            addToWishlist(product.id);
-        }
-    };
 
     const handlePincodeCheck = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -265,9 +255,7 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
                             <button onClick={handleAddToCart} disabled={!selectedSize || currentStock === 0} className="flex-1 bg-black text-white text-sm font-bold uppercase tracking-wider py-4 rounded-full hover:bg-gray-800 transition disabled:opacity-50">
                                 {currentStock === 0 ? "Out of Stock" : !selectedSize ? "Select Size" : "Add to Cart"}
                             </button>
-                            <button onClick={handleWishlistToggle} className="p-4 border-2 border-gray-200 rounded-full hover:border-black transition text-gray-500 hover:text-black">
-                                <Heart className={`w-5 h-5 ${isWishlisted ? 'text-red-500 fill-current' : ''}`} />
-                            </button>
+
                         </div>
 
                         <div className="border-t border-gray-100 pt-8 space-y-6 text-sm text-gray-600">
@@ -295,9 +283,7 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
 
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 lg:hidden z-40 flex gap-4">
                  <button className="p-4 border-2 border-gray-200 rounded-full text-gray-500"><Share2 className="w-5 h-5" /></button>
-                 <button onClick={handleWishlistToggle} className="p-4 border-2 border-gray-200 rounded-full hover:border-black transition text-gray-500 hover:text-black">
-                    <Heart className={`w-5 h-5 ${isWishlisted ? 'text-red-500 fill-current' : ''}`} />
-                 </button>
+
                  <button onClick={handleAddToCart} disabled={!selectedSize || currentStock === 0} className="flex-1 bg-black text-white text-sm font-bold uppercase tracking-wider py-4 rounded-full transition disabled:opacity-50">
                      {currentStock === 0 ? "Out of Stock" : !selectedSize ? "Select Size" : `Add - ₹${price.toLocaleString()}`}
                 </button>

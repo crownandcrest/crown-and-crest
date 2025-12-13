@@ -5,26 +5,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { Heart, Plus } from "lucide-react";
 import { useCart } from "@/context/CartContext";
-import { useWishlist } from "@/lib/hooks/useWishlist";
+
 import { Product, ProductVariant } from "@/types";
 
 export default function ProductCard({ product }: { product: Product & { product_variants: ProductVariant[] } }) {
     const { addToCart } = useCart();
-    const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
     const [isHovered, setIsHovered] = useState(false);
     const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-
-    const isWishlisted = isInWishlist(product.id);
-
-    const handleWishlistToggle = (e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (isWishlisted) {
-            removeFromWishlist(product.id);
-        } else {
-            addToWishlist(product.id);
-        }
-    };
 
     const variants = product.product_variants || [];
     const price = variants.length > 0 ? variants[0].selling_price : 0;
@@ -77,11 +64,7 @@ export default function ProductCard({ product }: { product: Product & { product_
                     {product.is_featured && <span className="bg-black text-white text-[10px] font-bold px-2 py-1 uppercase tracking-wider">Trending</span>}
                 </div>
 
-                <div className={`absolute top-3 right-3 flex flex-col gap-2 transition-all duration-300 ${isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'}`}>
-                    <button onClick={handleWishlistToggle} className="bg-white p-2 rounded-full shadow-md hover:bg-black hover:text-white transition">
-                        <Heart className={`w-4 h-4 ${isWishlisted ? 'text-red-500 fill-current' : ''}`} />
-                    </button>
-                </div>
+                {/* Removed Wishlist Button */}
 
                 <div className={`absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm p-4 transition-transform duration-300 ${isQuickAddOpen ? 'translate-y-0' : 'translate-y-full'}`}>
                     <p className="text-xs font-bold text-center mb-3 uppercase">Select Size</p>
