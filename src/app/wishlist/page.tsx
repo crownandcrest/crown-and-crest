@@ -1,78 +1,100 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Heart, Loader2 } from "lucide-react";
-import ProductCard from "@/components/ProductCard";
+import { Trash2, ShoppingBag } from "lucide-react";
+import Link from "next/link";
+import Image from "next/image";
 
 export default function WishlistPage() {
-  const [loading, setLoading] = useState(true);
-  const [wishlistItems, setWishlistItems] = useState<any[]>([]);
-  const router = useRouter();
   const supabase = createClient();
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  // Fetch Wishlist
   useEffect(() => {
-    const fetchWishlist = async () => {
+    async function fetchWishlist() {
       const { data: { user } } = await supabase.auth.getUser();
-
       if (!user) {
-        router.push("/login");
-        return;
+         window.location.href = "/login";
+         return;
       }
 
-      // 1. Get Wishlist IDs
-      const { data: wishlistData } = await supabase
-        .from('wishlist')
-        .select('product_id')
-        .eq('user_id', user.id);
+      const { data, error } = await supabase
+        .from("wishlist")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-      if (wishlistData && wishlistData.length > 0) {
-        const ids = wishlistData.map(w => w.product_id);
-        
-        // 2. Fetch Actual Products
-        const { data: products } = await supabase
-          .from('products')
-          .select('*')
-          .in('id', ids);
-          
-        setWishlistItems(products || []);
-      }
+      if (data) setItems(data);
       setLoading(false);
-    };
-
+    }
     fetchWishlist();
-  }, [router, supabase]);
+  }, []);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
+  const removeItem = async (id: string) => {
+    // Optimistic UI Update (Remove from screen immediately)
+    setItems(items.filter(item => item.id !== id));
+    
+    // Remove from DB
+    await supabase.from("wishlist").delete().eq("id", id);
+  };
+
+  if (loading) return <div className="p-10 text-center">Loading...</div>;
 
   return (
-    <div className="container mx-auto px-4 md:px-10 py-10 min-h-[60vh]">
-      <h1 className="text-3xl font-black uppercase font-display mb-8 flex items-center gap-3">
-        <Heart className="w-8 h-8 fill-red-500 text-red-500" /> My Wishlist
-      </h1>
+    <div className="max-w-4xl mx-auto px-4 py-10">
+      <h1 className="text-3xl font-black mb-8 uppercase">My Wishlist ({items.length})</h1>
 
-      {wishlistItems.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          {wishlistItems.map((p) => (
-             <ProductCard key={p.id} p={{
-                id: p.id,
-                slug: p.slug,
-                title: p.title,
-                price: p.price,
-                currency: p.currency,
-                images: p.images || [],
-                rating: Number(p.rating),
-                originalPrice: p.discount_percentage > 0 ? Math.round(p.price / (1 - p.discount_percentage/100)) : undefined,
-                discountPercentage: p.discount_percentage
-             }} />
-          ))}
+      {items.length === 0 ? (
+        <div className="text-center py-20 bg-gray-50 rounded-2xl">
+            <h2 className="text-xl font-bold text-gray-400">Your wishlist is empty</h2>
+            <Link href="/shop" className="inline-block mt-4 px-6 py-3 bg-black text-white rounded-xl font-bold">
+                Go Shopping
+            </Link>
         </div>
       ) : (
-        <div className="text-center py-20 bg-gray-50 rounded-[20px]">
-           <p className="text-gray-500 mb-4">Your wishlist is empty.</p>
-           <button onClick={() => router.push('/shop')} className="bg-black text-white px-6 py-3 rounded-full font-bold">
-              Go Shopping
-           </button>
+        <div className="grid gap-4">
+          {items.map((item) => {
+            const product = item.product_data;
+            return (
+              <div key={item.id} className="flex items-center gap-4 p-4 border rounded-xl bg-white shadow-sm">
+                
+                {/* Product Image */}
+                <div className="w-20 h-20 bg-gray-100 rounded-lg relative overflow-hidden">
+                   {product.image && (
+                      <Image 
+                        src={product.image} 
+                        alt={product.title} 
+                        fill 
+                        className="object-cover"
+                      />
+                   )}
+                </div>
+
+                {/* Details */}
+                <div className="flex-1">
+                    <h3 className="font-bold text-lg">{product.title}</h3>
+                    <p className="text-gray-500">₹{product.price}</p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                    <button 
+                        onClick={() => removeItem(item.id)}
+                        className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                    >
+                        <Trash2 className="w-5 h-5" />
+                    </button>
+                    <Link 
+                        href={`/shop/${item.product_id}`}
+                        className="p-3 bg-black text-white rounded-lg hover:bg-gray-800"
+                    >
+                        <ShoppingBag className="w-5 h-5" />
+                    </Link>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

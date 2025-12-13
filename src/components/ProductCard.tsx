@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import React from "react";
 import { Star, StarHalf } from "lucide-react";
+import WishlistButton from "@/components/WishlistButton";
 
 // Extended type to support your existing data + new design requirements
 type P = {
@@ -49,6 +50,9 @@ export default function ProductCard({ p }: { p: P }) {
             // Fallback if no image
             <div className="flex items-center justify-center h-full text-gray-400">No Image</div>
         )}
+        <div className="absolute top-2 right-2 z-10">
+          <WishlistButton product={p} />
+        </div>
       </div>
 
       {/* Title */}
