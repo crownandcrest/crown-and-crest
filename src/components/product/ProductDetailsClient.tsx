@@ -4,28 +4,31 @@ import { useState, useMemo } from "react";
 import Image from "next/image";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/lib/hooks/useWishlist";
-import { Heart, Share2, Ruler, User, Clock, MapPin, Loader2 } from "lucide-react"; // Added MapPin/Clock and Loader2
+import { Heart, Share2, Ruler, User, Clock, MapPin, Loader2 } from "lucide-react";
 import ProductCard from "@/components/shop/ProductCard";
 import Link from "next/link";
+import { Product, ProductVariant, SizeChart, UserMeasurement } from "@/types";
 
 interface ProductDetailsClientProps {
-    product: any;
-    relatedProducts: any[];
-    sizeChart?: any;      
-    userProfiles?: any[]; 
+    product: Product & { product_variants: ProductVariant[] };
+    relatedProducts: Product[];
+    sizeChart?: SizeChart;      
+    userProfiles?: UserMeasurement[]; 
 }
 
 export default function ProductDetailsClient({ product, relatedProducts, sizeChart, userProfiles = [] }: ProductDetailsClientProps) {
     const { addToCart } = useCart();
     const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
     
-    // ... (Existing states and useMemo blocks) ...
+    const colors = useMemo(() => {
+        return Array.from(new Set(product.product_variants.map((v: ProductVariant) => v.color)));
+    }, [product.product_variants]);
+
     const [activeImage, setActiveImage] = useState(product.images?.[0] || "");
-    const [selectedColor, setSelectedColor] = useState<string>("");
+    const [selectedColor, setSelectedColor] = useState<string>(() => colors[0] as string || "");
     const [selectedSize, setSelectedSize] = useState<string>("");
     const [quantity, setQuantity] = useState(1);
     
-    // NEW STATE: Pincode Check
     const [pincode, setPincode] = useState("");
     const [deliveryEstimate, setDeliveryEstimate] = useState<string | null>(null);
     const [isCheckingPincode, setIsCheckingPincode] = useState(false);
@@ -47,10 +50,8 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
         setIsCheckingPincode(true);
         setDeliveryEstimate(null);
 
-        // Simulate Shiprocket/Delhivery API call (this would be a secure server route in production)
         await new Promise(resolve => setTimeout(resolve, 800));
 
-        // Logic based on sample pincodes (replace with real API call)
         if (pincode === '400001' || pincode === '110001') {
              setDeliveryEstimate("Estimated Delivery: 2-3 Business Days");
         } else if (pincode.startsWith('5') || pincode.startsWith('6')) {
@@ -62,18 +63,16 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
         setIsCheckingPincode(false);
     };
 
-
-    // --- FIT ALGORITHM (Same as before) ---
     const recommendations = useMemo(() => {
         if (!sizeChart || !userProfiles || userProfiles.length === 0) return null;
-        // ... (fit algorithm logic) ...
+        
         const results = userProfiles.map(profile => {
             const targetChest = Number(profile.chest) + 2; 
             
             let bestFit = null;
             let minDiff = Infinity;
 
-            Object.entries(sizeChart.measurements).forEach(([sizeKey, measures]: [string, any]) => {
+            Object.entries(sizeChart.measurements).forEach(([sizeKey, measures]: [string, { [key: string]: number }]) => {
                 const chartChest = Number(measures.chest);
                 
                 if (chartChest >= targetChest) {
@@ -93,23 +92,15 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
 
     const defaultRecommendation = recommendations?.find(r => r.isDefault) || recommendations?.[0];
 
-
-    // --- STANDARD LOGIC (Same as before) ---
-    const colors = useMemo(() => {
-        const uniqueColors = Array.from(new Set(product.product_variants.map((v: any) => v.color)));
-        if (!selectedColor && uniqueColors.length > 0) setSelectedColor(uniqueColors[0] as string);
-        return uniqueColors;
-    }, [product.product_variants, selectedColor]);
-
     const sizes = useMemo(() => {
         if (!selectedColor) return [];
         return product.product_variants
-            .filter((v: any) => v.color === selectedColor)
-            .map((v: any) => ({ size: v.size, stock: v.stock_quantity }));
+            .filter((v: ProductVariant) => v.color === selectedColor)
+            .map((v: ProductVariant) => ({ size: v.size, stock: v.stock_quantity }));
     }, [product.product_variants, selectedColor]);
 
     const activeVariant = useMemo(() => {
-        return product.product_variants.find((v: any) => v.color === selectedColor && v.size === selectedSize);
+        return product.product_variants.find((v: ProductVariant) => v.color === selectedColor && v.size === selectedSize);
     }, [product.product_variants, selectedColor, selectedSize]);
 
     const price = activeVariant ? activeVariant.selling_price : (product.product_variants[0]?.selling_price || 0);
@@ -131,7 +122,6 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
             <div className="container mx-auto px-4 md:px-10 py-10">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
                     
-                    {/* LEFT: IMAGE GALLERY (Same as before) */}
                     <div className="space-y-4">
                         <div className="relative aspect-[4/5] w-full bg-gray-100 rounded-3xl overflow-hidden">
                             {activeImage && <Image src={activeImage} alt={product.name} fill className="object-cover" priority />}
@@ -148,10 +138,8 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
                         </div>
                     </div>
 
-                    {/* RIGHT: PRODUCT INFO */}
                     <div className="flex flex-col">
                         
-                        {/* Header */}
                         <div className="mb-8 border-b border-gray-100 pb-8">
                              <nav className="text-xs text-gray-500 mb-4 uppercase tracking-wider">Home / Shop / {product.category}</nav>
                              <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tighter mb-4">{product.name}</h1>
@@ -162,12 +150,10 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
                              </div>
                         </div>
 
-                        {/* FIT RECOMMENDATION (Same as before) */}
                         {defaultRecommendation && defaultRecommendation.bestFit && (
                             <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-8 animate-in fade-in">
                                 <div className="flex items-start gap-3">
                                     <Ruler className="w-5 h-5 text-blue-600 mt-0.5" />
-                                    {/* ... Recommendation content ... */}
                                     <div className="flex-1">
                                         <p className="text-sm text-blue-900 font-bold mb-1">
                                             We recommend Size <span className="text-lg underline">{defaultRecommendation.bestFit}</span>
@@ -194,7 +180,6 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
                             </div>
                         )}
                         
-                        {/* If no user logged in, show prompt */}
                         {!userProfiles || userProfiles.length === 0 && (
                             <div className="mb-8">
                                 <Link href="/account/size-book" className="text-xs flex items-center gap-2 text-gray-500 hover:text-black transition">
@@ -203,11 +188,10 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
                             </div>
                         )}
 
-                        {/* Color Selector (Same as before) */}
                         <div className="mb-8">
                             <p className="font-bold text-sm uppercase mb-4">Color: {selectedColor}</p>
                             <div className="flex flex-wrap gap-3">
-                                {colors.map((color: any) => {
+                                {colors.map((color) => {
                                     const cName = String(color);
                                     return (
                                         <button key={cName} onClick={() => { setSelectedColor(cName); setSelectedSize(""); }} className={`w-10 h-10 rounded-full border-2 flex items-center justify-center p-1 ${selectedColor === cName ? 'border-black' : 'border-gray-200'}`}>
@@ -218,7 +202,6 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
                             </div>
                         </div>
 
-                        {/* Size Selector (Same as before) */}
                         <div className="mb-8">
                              <div className="font-bold text-sm uppercase mb-4 flex justify-between items-center">
                                 <span>Size: {selectedSize || "Select"}</span>
@@ -229,13 +212,12 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
                                 )}
                             </div>
                             <div className="grid grid-cols-4 gap-3">
-                                {sizes.map((item: any) => (
+                                {sizes.map((item) => (
                                     <button 
                                         key={item.size}
                                         onClick={() => setSelectedSize(item.size)}
                                         disabled={item.stock === 0}
-                                        className={`py-3 text-sm font-bold border-2 rounded-xl relative ${selectedSize === item.size ? 'bg-black text-white border-black' : item.stock === 0 ? 'bg-gray-50 text-gray-300 line-through' : 'border-gray-200 hover:border-black'}`}
-                                    >
+                                        className={`py-3 text-sm font-bold border-2 rounded-xl relative ${selectedSize === item.size ? 'bg-black text-white border-black' : item.stock === 0 ? 'bg-gray-50 text-gray-300 line-through' : 'border-gray-200 hover:border-black'}`}>
                                         {item.size}
                                         {item.stock > 0 && item.stock < 5 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">{item.stock} left</span>}
                                     </button>
@@ -243,7 +225,6 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
                             </div>
                         </div>
                         
-                        {/* 👇 NEW: PINCODE CHECKER UI 👇 */}
                         <div className="mb-8 pt-4 border-t border-gray-100">
                              <h3 className="text-sm font-bold uppercase mb-2 flex items-center gap-2 text-gray-700">
                                 <MapPin className="w-4 h-4" /> Check Delivery Estimate
@@ -275,7 +256,6 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
                             )}
                         </div>
 
-                        {/* Action Buttons (Desktop) */}
                         <div className="hidden lg:flex gap-4 mb-8">
                             <div className="flex items-center border-2 border-black rounded-full px-4">
                                 <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="text-lg font-bold px-2">-</button>
@@ -290,7 +270,6 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
                             </button>
                         </div>
 
-                        {/* Description & Details (Same as before) */}
                         <div className="border-t border-gray-100 pt-8 space-y-6 text-sm text-gray-600">
                             <p>{product.description}</p>
                             <ul className="grid grid-cols-2 gap-y-3 font-medium text-gray-900">
@@ -303,7 +282,6 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
                 </div>
             </div>
 
-            {/* RELATED (Same as before) */}
             {relatedProducts.length > 0 && (
                 <section className="py-20 border-t border-gray-100">
                     <div className="container mx-auto px-4 md:px-10">
@@ -315,7 +293,6 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
                 </section>
             )}
 
-            {/* STICKY MOBILE CART BAR (Same as before) */}
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 lg:hidden z-40 flex gap-4">
                  <button className="p-4 border-2 border-gray-200 rounded-full text-gray-500"><Share2 className="w-5 h-5" /></button>
                  <button onClick={handleAddToCart} disabled={!selectedSize || currentStock === 0} className="flex-1 bg-black text-white text-sm font-bold uppercase tracking-wider py-4 rounded-full transition disabled:opacity-50">
@@ -325,3 +302,4 @@ export default function ProductDetailsClient({ product, relatedProducts, sizeCha
         </div>
     );
 }
+

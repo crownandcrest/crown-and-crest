@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { User as SupabaseUser } from "@supabase/supabase-js";
 import { User, ShoppingBag, Menu, X, LogOut, Heart } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useWishlist } from "@/lib/hooks/useWishlist";
@@ -11,7 +12,7 @@ import { useCart } from "@/context/CartContext";
 export default function Navbar() {
   const supabase = createClient();
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const { getWishlistCount } = useWishlist();
   const { getCartCount } = useCart();
@@ -38,7 +39,7 @@ export default function Navbar() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [router, supabase.auth]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

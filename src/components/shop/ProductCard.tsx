@@ -3,11 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { Heart, Plus, Eye } from "lucide-react";
+import { Heart, Plus } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/lib/hooks/useWishlist";
+import { Product, ProductVariant } from "@/types";
 
-export default function ProductCard({ product }: { product: any }) {
+export default function ProductCard({ product }: { product: Product & { product_variants: ProductVariant[] } }) {
     const { addToCart } = useCart();
     const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
     const [isHovered, setIsHovered] = useState(false);
@@ -25,24 +26,22 @@ export default function ProductCard({ product }: { product: any }) {
         }
     };
 
-    // Calculate details from variants
     const variants = product.product_variants || [];
     const price = variants.length > 0 ? variants[0].selling_price : 0;
-    const originalPrice = variants[0]?.cost_price || price * 1.2; // Mock original if missing
+    const originalPrice = variants[0]?.cost_price || price * 1.2;
     const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
     
-    // 1. FIX: Filter out null/undefined colors explicitly
-    const colors = Array.from(new Set(variants.map((v: any) => v.color).filter((c: any) => c))); 
-    const sizes = Array.from(new Set(variants.map((v: any) => v.size).filter((s: any) => s)));
+    const colors = Array.from(new Set(variants.map((v: ProductVariant) => v.color).filter((c) => c))); 
+    const sizes = Array.from(new Set(variants.map((v: ProductVariant) => v.size).filter((s) => s)));
 
     const handleQuickAdd = (e: React.MouseEvent) => {
-        e.preventDefault(); // Stop link navigation
+        e.preventDefault();
         setIsQuickAddOpen(true);
     };
 
     const confirmAddToCart = (e: React.MouseEvent, size: string) => {
         e.preventDefault();
-        const variant = variants.find((v: any) => v.size === size);
+        const variant = variants.find((v: ProductVariant) => v.size === size);
         if (variant) {
             addToCart(product.id, variant.id, 1);
             setIsQuickAddOpen(false);
@@ -57,16 +56,13 @@ export default function ProductCard({ product }: { product: any }) {
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => { setIsHovered(false); setIsQuickAddOpen(false); }}
         >
-            {/* 1. IMAGE CONTAINER */}
             <div className="relative aspect-[3/4] w-full overflow-hidden bg-gray-100 mb-4">
-                {/* Main Image */}
                 <Image
                     src={product.images?.[0] || ""}
                     alt={product.name}
                     fill
                     className={`object-cover transition-opacity duration-500 ${isHovered ? 'opacity-0' : 'opacity-100'}`}
                 />
-                {/* Hover Image (Model) */}
                 {product.images?.[1] && (
                     <Image
                         src={product.images[1]}
@@ -76,27 +72,24 @@ export default function ProductCard({ product }: { product: any }) {
                     />
                 )}
 
-                {/* Badges */}
                 <div className="absolute top-3 left-3 flex flex-col gap-1">
                     {discount > 0 && <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 uppercase tracking-wider">-{discount}%</span>}
                     {product.is_featured && <span className="bg-black text-white text-[10px] font-bold px-2 py-1 uppercase tracking-wider">Trending</span>}
                 </div>
 
-                {/* Hover Action Icons (Wishlist) */}
                 <div className={`absolute top-3 right-3 flex flex-col gap-2 transition-all duration-300 ${isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'}`}>
                     <button onClick={handleWishlistToggle} className="bg-white p-2 rounded-full shadow-md hover:bg-black hover:text-white transition">
                         <Heart className={`w-4 h-4 ${isWishlisted ? 'text-red-500 fill-current' : ''}`} />
                     </button>
                 </div>
 
-                {/* Quick Add Overlay */}
                 <div className={`absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm p-4 transition-transform duration-300 ${isQuickAddOpen ? 'translate-y-0' : 'translate-y-full'}`}>
                     <p className="text-xs font-bold text-center mb-3 uppercase">Select Size</p>
                     <div className="flex justify-center gap-2 flex-wrap">
-                        {sizes.map((size: any) => (
+                        {sizes.map((size) => (
                             <button 
                                 key={size}
-                                onClick={(e) => confirmAddToCart(e, size)}
+                                onClick={(e) => confirmAddToCart(e, size as string)}
                                 className="w-8 h-8 border border-gray-300 text-xs font-bold hover:bg-black hover:text-white transition"
                             >
                                 {size}
@@ -105,7 +98,6 @@ export default function ProductCard({ product }: { product: any }) {
                     </div>
                 </div>
 
-                {/* Quick Add Trigger Button */}
                 {!isQuickAddOpen && (
                     <button 
                         onClick={handleQuickAdd}
@@ -116,7 +108,6 @@ export default function ProductCard({ product }: { product: any }) {
                 )}
             </div>
 
-            {/* 2. PRODUCT INFO */}
             <div>
                 <h3 className="text-sm font-bold text-gray-900 mb-1 truncate">{product.name}</h3>
                 <div className="flex items-center gap-2 mb-2">
@@ -126,10 +117,8 @@ export default function ProductCard({ product }: { product: any }) {
                     )}
                 </div>
                 
-                {/* Color Swatches */}
                 <div className="flex gap-1 items-center">
-                    {colors.map((color: any, idx: number) => {
-                        // 2. FIX: Convert to string safely to avoid 'toLowerCase' crash
+                    {colors.map((color, idx) => {
                         const colorName = String(color); 
                         const isWhite = colorName.toLowerCase() === 'white';
                         
@@ -142,7 +131,6 @@ export default function ProductCard({ product }: { product: any }) {
                             />
                         );
                     })}
-                    {/* Sizes Preview */}
                     {sizes.length > 0 && (
                         <div className="ml-auto text-[10px] text-gray-400 uppercase">
                             {sizes.slice(0, 4).join(" / ")}

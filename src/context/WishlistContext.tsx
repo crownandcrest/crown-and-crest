@@ -18,29 +18,29 @@ interface WishlistContextType {
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
+const getInitialWishlist = (): WishlistItem[] => {
+    if (typeof window === 'undefined') {
+        return [];
+    }
+    const savedWishlist = localStorage.getItem('crown_wishlist');
+    if (savedWishlist) {
+        try {
+            return JSON.parse(savedWishlist);
+        } catch (e) {
+            console.error("Failed to parse wishlist", e);
+            return [];
+        }
+    }
+    return [];
+};
+
 export function WishlistProvider({ children }: { children: ReactNode }) {
-    const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
-    const [isLoaded, setIsLoaded] = useState(false);
+    const [wishlist, setWishlist] = useState<WishlistItem[]>(getInitialWishlist);
 
-    // 1. Load Wishlist from LocalStorage on mount
+    // Save Wishlist to LocalStorage whenever it changes
     useEffect(() => {
-        const savedWishlist = localStorage.getItem('crown_wishlist');
-        if (savedWishlist) {
-            try {
-                setWishlist(JSON.parse(savedWishlist));
-            } catch (e) {
-                console.error("Failed to parse wishlist", e);
-            }
-        }
-        setIsLoaded(true);
-    }, []);
-
-    // 2. Save Wishlist to LocalStorage whenever it changes
-    useEffect(() => {
-        if (isLoaded) {
-            localStorage.setItem('crown_wishlist', JSON.stringify(wishlist));
-        }
-    }, [wishlist, isLoaded]);
+        localStorage.setItem('crown_wishlist', JSON.stringify(wishlist));
+    }, [wishlist]);
 
     // --- Actions ---
 
