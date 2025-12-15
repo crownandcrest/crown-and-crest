@@ -9,22 +9,33 @@ export default function OtpPage() {
   const [loading, setLoading] = useState(false)
 
   async function verifyOtp() {
-    setLoading(true)
+  setLoading(true)
 
-    try {
-      const confirmationResult = window.confirmationResult
-      if (!confirmationResult) {
-        throw new Error('OTP session expired')
-      }
-
-      await confirmationResult.confirm(otp)
-      router.push('/')
-    } catch (err) {
-      alert((err as Error).message)
+  try {
+    const confirmationResult = window.confirmationResult
+    if (!confirmationResult) {
+      throw new Error('OTP session expired')
     }
 
-    setLoading(false)
+    const result = await confirmationResult.confirm(otp)
+
+    // 🔑 THIS IS THE KEY STEP YOU WERE MISSING
+    const idToken = await result.user.getIdToken()
+
+    await fetch('/api/session/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    })
+
+    router.push('/')
+  } catch (err) {
+    alert((err as Error).message)
   }
+
+  setLoading(false)
+}
+
 
   return (
     <div className="min-h-screen flex items-center justify-center">
