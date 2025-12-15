@@ -21,32 +21,35 @@ export default function LoginClient() {
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
 
-  async function sendOtp() {
-    setLoading(true)
+ async function sendOtp() {
+  setLoading(true)
 
+  try {
     if (!window.recaptchaVerifier) {
       window.recaptchaVerifier = new RecaptchaVerifier(
         auth,
         'recaptcha-container',
-        { size: 'invisible' }
+        {
+          size: 'invisible',
+          callback: () => {},
+        }
       )
     }
 
-    try {
-      const confirmationResult = await signInWithPhoneNumber(
-        auth,
-        `+91${phone}`,
-        window.recaptchaVerifier
-      )
+    const confirmationResult = await signInWithPhoneNumber(
+      auth,
+      `+91${phone}`,
+      window.recaptchaVerifier
+    )
 
-      window.confirmationResult = confirmationResult
-      router.push('/auth/otp')
-    } catch (err) {
-      alert((err as Error).message)
-    }
-
-    setLoading(false)
+    window.confirmationResult = confirmationResult
+    router.push('/auth/otp')
+  } catch (err) {
+    alert((err as Error).message)
   }
+
+  setLoading(false)
+}
 
   return (
     <div className="min-h-screen flex items-center justify-center">
