@@ -1,14 +1,19 @@
 import { NextResponse } from 'next/server'
-import { adminAuth } from '@/lib/firebase/admin'
 import { cookies } from 'next/headers'
+import { adminAuth } from '@/lib/firebase/admin'
 
 export async function POST(req: Request) {
   const { idToken } = await req.json()
 
-  // Verify Firebase ID token
+  if (!idToken) {
+    return NextResponse.json(
+      { error: 'Missing token' },
+      { status: 400 }
+    )
+  }
+
   const decoded = await adminAuth.verifyIdToken(idToken)
 
-  // IMPORTANT: cookies() is async in Next 16
   const cookieStore = await cookies()
 
   cookieStore.set('session', decoded.uid, {
