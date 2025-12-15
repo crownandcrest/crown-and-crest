@@ -30,7 +30,6 @@ export async function getCart(): Promise<CartItem[]> {
     .select(`
       id,
       quantity,
-      product_id,
       products:product_id (
         id,
         name,
@@ -44,21 +43,26 @@ export async function getCart(): Promise<CartItem[]> {
     .eq('firebase_uid', uid)
 
   if (error || !data) {
-    console.error('getCart error:', error)
     return []
   }
 
-  // 🔑 NORMALIZE + TYPE FIX
   return data
-    .filter((item: any) => item.products)
-    .map((item: any) => ({
-      id: item.id,
-      quantity: item.quantity,
-      products: Array.isArray(item.products)
+    .map((item) => {
+      const product = Array.isArray(item.products)
         ? item.products[0]
-        : item.products,
-    }))
+        : item.products
+
+      if (!product) return null
+
+      return {
+        id: item.id,
+        quantity: item.quantity,
+        products: product,
+      }
+    })
+    .filter((item): item is CartItem => item !== null)
 }
+
 
 /* =========================
    ADD TO CART

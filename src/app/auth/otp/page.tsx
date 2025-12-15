@@ -1,7 +1,7 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function OtpPage() {
   const router = useRouter()
@@ -12,23 +12,15 @@ export default function OtpPage() {
     setLoading(true)
 
     try {
-      const confirmationResult = (window as any).confirmationResult
-      const result = await confirmationResult.confirm(otp)
+      const confirmationResult = window.confirmationResult
+      if (!confirmationResult) {
+        throw new Error('OTP session expired')
+      }
 
-      const user = result.user
-      console.log('Firebase UID:', user.uid)
-
-      const idToken = await user.getIdToken()
-
-      await fetch('/api/session/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
-      })
-
-      router.push('/cart')
-    } catch (err: any) {
-      alert('Invalid OTP')
+      await confirmationResult.confirm(otp)
+      router.push('/')
+    } catch (err) {
+      alert((err as Error).message)
     }
 
     setLoading(false)
@@ -51,7 +43,7 @@ export default function OtpPage() {
           disabled={loading}
           className="w-full bg-black text-white py-2 rounded"
         >
-          Verify & Continue
+          Verify
         </button>
       </div>
     </div>
