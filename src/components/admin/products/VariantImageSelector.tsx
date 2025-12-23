@@ -1,0 +1,219 @@
+'use client'
+
+import { useState } from 'react'
+import Image from 'next/image'
+import { Image as ImageIcon, X, Upload } from 'lucide-react'
+
+interface VariantImageSelectorProps {
+    variantId: string
+    variantLabel: string // e.g., "M / Blue"
+    currentImages: string[]
+    availableImages: string[] // All product images
+    onUpdate: (images: string[]) => void
+}
+
+export default function VariantImageSelector({
+    variantId,
+    variantLabel,
+    currentImages = [],
+    availableImages = [],
+    onUpdate
+}: VariantImageSelectorProps) {
+    const [isModalOpen, setIsModalOpen] = useState(false)
+    const [selectedImages, setSelectedImages] = useState<string[]>(currentImages)
+    const [isUploading, setIsUploading] = useState(false)
+
+    const handleOpenModal = () => {
+        setSelectedImages(currentImages)
+        setIsModalOpen(true)
+    }
+
+    const handleSave = () => {
+        onUpdate(selectedImages)
+        setIsModalOpen(false)
+    }
+
+    const handleCancel = () => {
+        setSelectedImages(currentImages)
+        setIsModalOpen(false)
+    }
+
+    const toggleImageSelection = (imageUrl: string) => {
+        setSelectedImages(prev =>
+            prev.includes(imageUrl)
+                ? prev.filter(img => img !== imageUrl)
+                : [...prev, imageUrl]
+        )
+    }
+
+    const handleUploadImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files
+        if (!files || files.length === 0) return
+
+        setIsUploading(true)
+
+        try {
+            const formData = new FormData()
+            Array.from(files).forEach(file => {
+                formData.append('files', file)
+            })
+
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            })
+
+            if (!response.ok) throw new Error('Upload failed')
+
+            const { urls } = await response.json()
+
+            // Add newly uploaded images to selection
+            setSelectedImages(prev => [...prev, ...urls])
+        } catch (error) {
+            console.error('Upload error:', error)
+            alert('Failed to upload images')
+        } finally {
+            setIsUploading(false)
+        }
+    }
+
+    const firstImage = currentImages[0]
+    const imageCount = currentImages.length
+
+    return (
+        <>
+            {/* Trigger Button */}
+            <button
+                type="button"
+                onClick={handleOpenModal}
+                className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-md hover:border-gray-300 hover:bg-gray-50 transition-colors"
+            >
+                {firstImage ? (
+                    <div className="relative w-10 h-10 rounded overflow-hidden bg-gray-100">
+                        <Image
+                            src={firstImage}
+                            alt="Variant"
+                            fill
+                            className="object-cover"
+                        />
+                    </div>
+                ) : (
+                    <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center">
+                        <ImageIcon className="w-5 h-5 text-gray-400" />
+                    </div>
+                )}
+                <span className="text-sm text-gray-600">
+                    {imageCount > 0 ? `${imageCount} image${imageCount > 1 ? 's' : ''}` : 'Add images'}
+                </span>
+            </button>
+
+            {/* Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-4 border-b">
+                            <h3 className="text-lg font-semibold">
+                                Select Images for: {variantLabel}
+                            </h3>
+                            <button
+                                onClick={handleCancel}
+                                className="p-1 hover:bg-gray-100 rounded"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto p-4">
+                            {/* Available Images Grid */}
+                            {availableImages.length > 0 && (
+                                <div className="mb-6">
+                                    <h4 className="text-sm font-medium text-gray-700 mb-3">
+                                        Product Images
+                                    </h4>
+                                    <div className="grid grid-cols-4 gap-3">
+                                        {availableImages.map((imageUrl, idx) => {
+                                            const isSelected = selectedImages.includes(imageUrl)
+                                            return (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => toggleImageSelection(imageUrl)}
+                                                    className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${isSelected
+                                                            ? 'border-blue-500 ring-2 ring-blue-200'
+                                                            : 'border-gray-200 hover:border-gray-300'
+                                                        }`}
+                                                >
+                                                    <Image
+                                                        src={imageUrl}
+                                                        alt={`Image ${idx + 1}`}
+                                                        fill
+                                                        className="object-cover"
+                                                    />
+                                                    {isSelected && (
+                                                        <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
+                                                            <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                                                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                                </svg>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Upload New Images */}
+                            <div>
+                                <h4 className="text-sm font-medium text-gray-700 mb-3">
+                                    Upload New Images
+                                </h4>
+                                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-colors">
+                                    <input
+                                        type="file"
+                                        multiple
+                                        accept="image/*"
+                                        onChange={handleUploadImages}
+                                        className="hidden"
+                                        disabled={isUploading}
+                                    />
+                                    <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                                    <span className="text-sm text-gray-500">
+                                        {isUploading ? 'Uploading...' : 'Click to upload images'}
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex items-center justify-between p-4 border-t bg-gray-50">
+                            <span className="text-sm text-gray-600">
+                                {selectedImages.length} image{selectedImages.length !== 1 ? 's' : ''} selected
+                            </span>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleCancel}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleSave}
+                                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                                >
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    )
+}
