@@ -26,7 +26,7 @@ export default async function OrderFailurePage({
         // Unauthenticated - show generic failure page
         return (
             <OrderFailureClient
-                orderData={{
+                orderdata={{
                     order: null,
                     genericError: true
                 }}
@@ -38,7 +38,7 @@ export default async function OrderFailurePage({
     if (!orderId) {
         return (
             <OrderFailureClient
-                orderData={{
+                orderdata={{
                     order: null,
                     genericError: true
                 }}
@@ -60,7 +60,7 @@ export default async function OrderFailurePage({
         // Generic message - no data leakage
         return (
             <OrderFailureClient
-                orderData={{
+                orderdata={{
                     order: null,
                     genericError: true
                 }}
@@ -69,5 +69,5 @@ export default async function OrderFailurePage({
     }
 
     // User authenticated, order exists, order belongs to user - safe to show
-    return <OrderFailureClient orderData={{ order }} />
+    return <OrderFailureClient orderdata={{ order }} />
 }

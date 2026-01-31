@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { getActiveApiKey } from '@/lib/ai/settings/actions'
 
@@ -26,7 +26,7 @@ async function generateWithOpenRouter(
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   
   // Build request body - only include model if specified
-  const requestBody: any = {
+  const requestBody: Record<string, unknown> = {
     messages: [{ role: 'user', content: prompt }],
     temperature: options.temperature || 0.7,
     max_tokens: options.maxTokens || 1000,
@@ -254,8 +254,9 @@ export async function generateText(
       default:
         throw new Error(`Unsupported provider: ${activeKey.provider}`)
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('AI generation error:', error)
-    throw new Error(error.message || 'Failed to generate content')
+    const errorMessage = error instanceof Error ? error.message : 'Failed to generate content'
+    throw new Error(errorMessage)
   }
 }

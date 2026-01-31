@@ -1,30 +1,40 @@
-// Phase 13: Sizebook Foundation - Barrel Exports
-// Purpose: Centralized exports for Sizebook module
+// ============================================
+// SIZEBOOK - BARREL EXPORTS
+// ============================================
+// User-owned module (privacy-first)
+// Architecture: One user = one body = one profile
+// ============================================
 
-// Recommendation engine (pure functions, no side effects)
-export {
-  computeSizeRecommendation,
-  validateMeasurements,
-  hasCommonMeasurements,
-} from './recommendation';
+// Types
+export type {
+  UserSizebook,
+  UserMeasurements,
+  CreateSizebookPayload,
+  UpdateSizebookPayload,
+  SizebookCompleteness,
+  SizebookActionResult,
+  MeasurementValidationError,
+  MeasurementValidationResult,
+} from './types'
 
-// Admin server actions (require admin role)
+// Validation utilities
 export {
-  createSizeProfile,
-  updateSizeProfile,
-  deleteSizeProfile,
-  listSizeProfiles,
-  assignSizeProfileToProduct,
-  removeSizeProfileFromProduct,
-  getProductSizeProfiles,
-  updateProductSizeProfileNotes,
-} from './admin-actions';
+  validateUserMeasurements,
+  validateHeight,
+  validateWeight,
+  validateGender,
+  validateFitPreference,
+  getSuggestedMeasurementFields,
+  calculateCompleteness,
+} from './validation'
 
-// User server actions (require authenticated user)
+// User server actions
 export {
-  saveUserSizeProfile,
-  getUserSizeProfile,
-  getAllUserSizeProfiles,
-  deleteUserSizeProfile,
-  hasUserSizeProfile,
-} from './user-actions';
+  createSizebook,
+  updateSizebook,
+  getSizebook,
+  deleteSizebook,
+  hasSizebook,
+  getSizebookCompleteness,
+  updateMeasurement,
+} from './user-actions'

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AI Health Monitoring System
  * Periodically checks model availability and updates health status
  */
@@ -36,12 +36,17 @@ async function getActiveApiKeys(): Promise<ActiveKey[]> {
 
   if (!data) return []
 
-  return data.map((key: any) => ({
-    id: key.id,
-    provider_name: key.ai_providers.name,
-    encrypted_key: key.encrypted_key,
-    selected_models: key.selected_models || [],
-    health_status: key.health_status || {}
+  interface HealthKey {
+    id: string
+    key_name: string
+    provider: string
+  }
+  return data.map((dbKey: any) => ({
+    id: dbKey.id,
+    provider_name: dbKey.ai_providers.name,
+    encrypted_key: dbKey.encrypted_key,
+    selected_models: dbKey.selected_models || [],
+    health_status: dbKey.health_status || {}
   }))
 }
 
@@ -121,12 +126,13 @@ export async function runHealthCheck(): Promise<{
 
           // Rate limit protection - wait 1 second between checks
           await new Promise(resolve => setTimeout(resolve, 1000))
-        } catch (error: any) {
+        } catch (error: unknown) {
           unhealthy++
-          errors.push(`${modelId}: ${error.message}`)
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          errors.push(`${modelId}: ${errorMessage}`)
           console.error(`[Health Monitor] Error testing ${modelId}:`, error)
 
-          await updateModelHealth(modelId, false, error.message)
+          await updateModelHealth(modelId, false, errorMessage)
         }
       }
     }
@@ -134,7 +140,7 @@ export async function runHealthCheck(): Promise<{
     console.log(`[Health Monitor] Complete: ${checked} checked, ${healthy} healthy, ${unhealthy} unhealthy`)
     
     return { checked, healthy, unhealthy, errors }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Health Monitor] Fatal error:', error)
     throw error
   }

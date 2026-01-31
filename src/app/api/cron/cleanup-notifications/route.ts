@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { cleanupExpiredNotifications } from '@/lib/notifications/actions'
 
 /**
@@ -37,13 +37,13 @@ export async function GET(request: NextRequest) {
       success: true,
       timestamp: new Date().toISOString()
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Cron] Notification cleanup failed:', error)
     
     return NextResponse.json(
       {
         success: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString()
       },
       { status: 500 }

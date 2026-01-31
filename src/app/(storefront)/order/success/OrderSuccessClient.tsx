@@ -8,7 +8,39 @@ import { motion } from 'framer-motion'
 import { useToast } from '@/hooks/useToast'
 import type { OrderWithItems } from '@/types/order'
 
-export default function OrderSuccessClient({ order, items }: { order: any, items: any[] }) {
+interface OrderData {
+    id: string
+    created_at: string
+    status: string
+    total_amount: number
+    amount: number
+    payment_method?: string
+    razorpay_order_id?: string
+    razorpay_payment_id?: string
+    shipping_address?: Record<string, unknown>
+    customer_phone?: string
+}
+
+interface OrderItem {
+    quantity: number
+    product_name?: string
+    variant_label?: string
+    unit_price?: number
+    price_at_purchase?: number
+    variants?: {
+        size?: string | null
+        color?: string | null
+        price_override?: number | null
+        products?: {
+            name?: string
+            slug?: string
+            base_price?: number
+            image_url?: string
+        }
+    }
+}
+
+export default function OrderSuccessClient({ order, items }: { order: OrderData, items: OrderItem[] }) {
     const { showSuccess } = useToast()
 
     const deliveryDate = new Date(new Date(order.created_at).getTime() + 5 * 24 * 60 * 60 * 1000)
@@ -93,10 +125,10 @@ export default function OrderSuccessClient({ order, items }: { order: any, items
 
                             <div className="space-y-4 relative z-10">
                                 <div>
-                                    <h3 className="font-bold text-gray-900 text-lg mb-1">{order.shipping_address?.fullName || 'Guest User'}</h3>
+                                    <h3 className="font-bold text-gray-900 text-lg mb-1">{(order.shipping_address as { fullName?: string })?.fullName || 'Guest User'}</h3>
                                     <p className="text-gray-500 leading-relaxed">
-                                        {order.shipping_address?.addressLine1}<br />
-                                        {order.shipping_address?.city}, {order.shipping_address?.state} - {order.shipping_address?.pincode}
+                                        {(order.shipping_address as { addressLine1?: string })?.addressLine1}<br />
+                                        {(order.shipping_address as { city?: string; state?: string; pincode?: string })?.city}, {(order.shipping_address as { state?: string })?.state} - {(order.shipping_address as { pincode?: string })?.pincode}
                                     </p>
                                     {order.customer_phone && (
                                         <p className="text-gray-500 mt-1">Phone: +91 {order.customer_phone}</p>
@@ -127,7 +159,7 @@ export default function OrderSuccessClient({ order, items }: { order: any, items
                             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">Order Summary</h2>
 
                             <div className="space-y-6">
-                                {items.map((item: any, idx: number) => (
+                                {items.map((item, idx: number) => (
                                     <div key={idx} className="flex gap-4">
                                         <div className="relative w-16 h-20 bg-gray-100 rounded-lg overflow-hidden shrink-0">
                                             <Image

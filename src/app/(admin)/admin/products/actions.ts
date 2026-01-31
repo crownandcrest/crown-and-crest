@@ -4,7 +4,28 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/admin/auth'
 
-export async function upsertProduct(productData: any, variants: any[], isEditing: boolean, productId?: string) {
+interface ProductVariant {
+  id?: string
+  size?: string | null
+  color?: string | null
+  sku: string
+  price_override?: number | null
+  stock_quantity: number
+  low_stock_threshold?: number
+  enabled?: boolean
+  position?: number
+  options?: Record<string, string>
+  price?: number
+  stock?: number
+  images?: string[]
+}
+
+export async function upsertProduct(
+  productdata: Record<string, unknown>, 
+  variants: ProductVariant[], 
+  isEditing: boolean, 
+  productId?: string
+) {
     try {
         // CRITICAL: Verify admin authorization before any operation
         await requireAdmin()
@@ -16,7 +37,7 @@ export async function upsertProduct(productData: any, variants: any[], isEditing
             .from('products')
             .upsert({
                 ...(isEditing && productId ? { id: productId } : {}),
-                ...productData,
+                ...productdata,
                 // updated_at: new Date().toISOString() // Column does not exist
             })
             .select()
@@ -60,7 +81,7 @@ export async function upsertProduct(productData: any, variants: any[], isEditing
                     sku = parts.join('-').toUpperCase().replace(/[^A-Z0-9-]/g, '')
                 }
 
-                return {
+                const mappedVariant = {
                     product_id: finalProductId,
                     size,
                     color,
@@ -70,6 +91,7 @@ export async function upsertProduct(productData: any, variants: any[], isEditing
                     enabled: true,
                     images: v.images || [], // Variant images from form
                 }
+                return mappedVariant
             })
 
             // Deduplicate variants to avoid unique constraint violations
@@ -144,9 +166,10 @@ export async function upsertProduct(productData: any, variants: any[], isEditing
         revalidatePath('/shop')
         
         return { success: true, productId: finalProductId }
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('upsertProduct exception:', error)
-        return { success: false, error: error.message }
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+        return { success: false, error: errorMessage }
     }
 }
 
@@ -155,7 +178,28 @@ export async function deleteProducts(productIds: string[]) {
     try {
         await requireAdmin()
 
-        // First, delete variants (variants CASCADE to cart_items, media, etc.)
+        // Step 1: Get all variant IDs for these products
+        const { data: variants } = await supabaseAdmin
+            .from('variants')
+            .select('id')
+            .in('product_id', productIds)
+
+        const variantIds = variants?.map(v => v.id) || []
+
+        // Step 2: Clean up stock_reservations first (if any variants exist)
+        if (variantIds.length > 0) {
+            const { error: reservationError } = await supabaseAdmin
+                .from('stock_reservations')
+                .delete()
+                .in('variant_id', variantIds)
+
+            if (reservationError) {
+                console.error('Error deleting stock reservations:', reservationError)
+                // Continue anyway - reservations might have been cleaned up by expiry
+            }
+        }
+
+        // Step 3: Delete variants (variants CASCADE to cart_items, media, etc.)
         const { error: variantError } = await supabaseAdmin
             .from('variants')
             .delete()
@@ -163,10 +207,10 @@ export async function deleteProducts(productIds: string[]) {
 
         if (variantError) {
             console.error('Error deleting variants:', variantError)
-            // Continue anyway - some products might not have variants
+            throw new Error(`Failed to delete product variants: ${variantError.message}`)
         }
 
-        // Then delete products (will CASCADE to collections_products, homepage_products, etc.)
+        // Step 4: Delete products (will CASCADE to collections_products, homepage_products, etc.)
         const { error } = await supabaseAdmin
             .from('products')
             .delete()
@@ -186,9 +230,10 @@ export async function deleteProducts(productIds: string[]) {
         revalidatePath('/shop')
         
         return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('deleteProducts exception:', error)
-        return { success: false, error: error.message }
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+        return { success: false, error: errorMessage }
     }
 }
 
@@ -211,8 +256,9 @@ export async function updateProductStatus(productIds: string[], isActive: boolea
         revalidatePath('/shop')
         
         return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('updateProductStatus exception:', error)
-        return { success: false, error: error.message }
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+        return { success: false, error: errorMessage }
     }
 }

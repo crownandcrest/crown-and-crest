@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { mapShiprocketStatus } from '@/lib/shiprocket/shipment'
@@ -59,29 +59,29 @@ export async function POST(req: NextRequest) {
     const newStatus = mapShiprocketStatus(current_status || shipment_status)
 
     // Update order with latest tracking info
-    const updateData: any = {
+    const updatedata: Record<string, unknown> = {
       shipment_status: newStatus,
       last_tracking_update: new Date().toISOString(),
     }
 
     // Update courier name if provided
     if (courier_name) {
-      updateData.courier_name = courier_name
+      updatedata.courier_name = courier_name
     }
 
     // Update tracking ID if provided
     if (awb && !order.tracking_id) {
-      updateData.tracking_id = awb
+      updatedata.tracking_id = awb
     }
 
     // Set delivery date if delivered
     if (newStatus === 'DELIVERED' && !order.actual_delivery_date) {
-      updateData.actual_delivery_date = new Date().toISOString().split('T')[0]
+      updatedata.actual_delivery_date = new Date().toISOString().split('T')[0]
     }
 
     await supabaseAdmin
       .from('orders')
-      .update(updateData)
+      .update(updatedata)
       .eq('id', order.id)
 
     console.log('[SHIPROCKET_WEBHOOK] Order updated:', order.id, 'Status:', newStatus)

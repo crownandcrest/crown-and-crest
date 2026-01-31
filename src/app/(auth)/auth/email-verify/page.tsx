@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -72,10 +72,11 @@ function EmailVerifyContent() {
           router.push(redirectUrl)
         }, 1500)
 
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Email verification error:', err)
         setStatus('error')
-        setError(err.message || 'Failed to verify email link')
+        const errorMessage = err instanceof Error ? err.message : 'Failed to verify email link'
+        setError(errorMessage)
       }
     }
 

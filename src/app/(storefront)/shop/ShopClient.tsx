@@ -18,6 +18,7 @@ interface Product {
 
 interface ShopClientProps {
     initialProducts: Product[]
+    categoryName?: string
 }
 
 export default function ShopClient({ initialProducts }: ShopClientProps) {

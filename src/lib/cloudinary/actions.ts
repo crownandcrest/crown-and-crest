@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { generateCloudinarySignature, getCloudinaryAdmin } from './server'
 import { Readable } from 'stream'
@@ -63,8 +63,8 @@ export async function uploadProductImage(formData: FormData) {
         stream.push(null)
         stream.pipe(uploadStream)
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('uploadProductImage exception:', error)
-    throw new Error(error.message || 'Upload action failed')
+    throw new Error(error instanceof Error ? error.message : 'Upload action failed')
   }
 }

@@ -4,11 +4,18 @@ import AuthClient from './AuthClient'
 
 export const dynamic = 'force-dynamic'
 
-export default async function AuthPage() {
+interface Props {
+  searchParams: Promise<{ redirect?: string }>
+}
+
+export default async function AuthPage({ searchParams }: Props) {
   const user = await getCurrentUser()
+  const params = await searchParams
 
   if (user) {
-    redirect('/')
+    // If user is already logged in, redirect to the target page
+    const redirectUrl = params.redirect || '/'
+    redirect(redirectUrl)
   }
 
   return <AuthClient />

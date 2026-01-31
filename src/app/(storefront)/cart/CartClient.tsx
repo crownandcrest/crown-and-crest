@@ -11,13 +11,32 @@ import type { CartItem } from '@/types/cart'
 import { useToast } from '@/hooks/useToast'
 
 // Declare Razorpay on window
+interface RazorpayOptions {
+    key: string
+    order_id: string
+    callback_url: string
+    name: string
+    description: string
+    theme: { color: string }
+}
+
+interface RazorpayInstance {
+    open: () => void
+    on: (event: string, handler: (response: unknown) => void) => void
+}
+
 declare global {
     interface Window {
-        Razorpay: any
+        Razorpay: new (options: RazorpayOptions) => RazorpayInstance
     }
 }
 
-export default function CartClient({ user }: { user?: any }) {
+interface User {
+    uid: string
+    email?: string | null
+}
+
+export default function CartClient({ user }: { user?: User }) {
     const router = useRouter()
     const { showSuccess, showError } = useToast()
     const [cartItems, setCartItems] = useState<CartItem[]>([])
@@ -126,9 +145,9 @@ export default function CartClient({ user }: { user?: any }) {
                 )
                 setCartItems(updatedItems)
                 calculateTotals(updatedItems)
-            } catch (err: any) {
+            } catch (err: unknown) {
                 // Show specific error message if available
-                const errorMessage = err?.message || 'Failed to update quantity'
+                const errorMessage = err instanceof Error ? err.message : 'Failed to update quantity'
                 showError(errorMessage)
                 // Reload cart to reset to actual state
                 loadCart()
@@ -189,15 +208,19 @@ export default function CartClient({ user }: { user?: any }) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
             })
-            const data = await res.json()
+            const data: { razorpay_order_id?: string; order_id?: string; error?: string } = await res.json()
             if (!res.ok) {
                 throw new Error(data.error || 'Failed to create order')
             }
             if (!data.razorpay_order_id) {
                 throw new Error('MAGIC_CHECKOUT_FAILED')
             }
+            const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID
+            if (!razorpayKey) {
+                throw new Error('Razorpay configuration is missing')
+            }
             const options = {
-                key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+                key: razorpayKey,
                 order_id: data.razorpay_order_id,
                 callback_url: `${window.location.origin}/order/success?orderId=${data.order_id}`,
                 name: 'Crown & Crest',
@@ -205,13 +228,15 @@ export default function CartClient({ user }: { user?: any }) {
                 theme: { color: '#000000' }
             }
             const rzp = new window.Razorpay(options)
-            rzp.on('payment.failed', function (response: any) {
+            rzp.on('payment.failed', function (response: unknown) {
                 setIsCheckingOut(false)
-                showError('Payment failed: ' + (response.error?.description || 'Unknown error'))
+                const errorDesc = (response as { error?: { description?: string } })?.error?.description || 'Unknown error'
+                showError('Payment failed: ' + errorDesc)
             })
             rzp.open()
-        } catch (error: any) {
-            showError(error.message || 'Failed to initiate checkout')
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to initiate checkout'
+            showError(errorMessage)
             setIsCheckingOut(false)
         }
     }

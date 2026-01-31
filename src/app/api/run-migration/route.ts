@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+﻿import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -68,11 +68,11 @@ $$ LANGUAGE plpgsql STABLE;
       success: true, 
       message: 'Migration applied successfully - get_product_stock_flags function has been recreated without nested aggregates' 
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Migration error:', err)
     return NextResponse.json({ 
       success: false, 
-      error: err.message,
+      error: err instanceof Error ? err.message : 'Unknown error',
       sql: sql 
     }, { status: 500 })
   }

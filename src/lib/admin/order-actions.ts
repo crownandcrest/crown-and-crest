@@ -52,9 +52,10 @@ export async function updateOrderStatus(
     console.log('[ADMIN] Order status updated:', orderId, newStatus)
     return { success: true }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[ADMIN] requireAdmin failed:', error)
-    return { success: false, error: error.message }
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return { success: false, error: errorMessage }
   }
 }
 
@@ -87,9 +88,10 @@ export async function bulkUpdateOrderStatus(
     
     return { success: true, count }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[ADMIN] requireAdmin failed:', error)
-    return { success: false, count: 0, error: error.message }
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return { success: false, count: 0, error: errorMessage }
   }
 }
 
@@ -127,9 +129,10 @@ export async function createShipmentForOrder(
       awb: shipment.awbCode || undefined,
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[ADMIN] Error creating shipment:', error)
-    return { success: false, error: error.message }
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return { success: false, error: errorMessage }
   }
 }
 
@@ -175,8 +178,9 @@ export async function refreshTrackingInfo(
     
     return { success: true }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[ADMIN] Error refreshing tracking:', error)
-    return { success: false, error: error.message }
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return { success: false, error: errorMessage }
   }
 }

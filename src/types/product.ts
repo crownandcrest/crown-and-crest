@@ -35,7 +35,7 @@ export type Product = {
   created_at?: string
   updated_at?: string
   media?: ProductMedia[]  // Cloudinary media (primary first, then by position)
-  product_variants?: any[]  // For PDP compatibility
+  product_variants?: unknown[]  // For PDP compatibility
 }
 
 export type Variant = {

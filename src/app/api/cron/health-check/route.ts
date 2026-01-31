@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { runHealthCheck } from '@/lib/ai/health-monitor'
 
 /**
@@ -42,13 +42,13 @@ export async function GET(request: NextRequest) {
       duration: `${duration}ms`,
       timestamp: new Date().toISOString()
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Cron] Health check failed:', error)
     
     return NextResponse.json(
       {
         success: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString()
       },
       { status: 500 }

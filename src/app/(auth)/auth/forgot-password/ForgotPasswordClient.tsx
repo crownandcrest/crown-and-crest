@@ -206,7 +206,7 @@ export default function ForgotPasswordClient() {
             </div>
 
             <p className="text-center text-xs text-gray-500">
-              By continuing, you agree to Crown And Crest&apos;s{' '}
+              By continuing, you agree to Crown And Crest's{' '}
               <a href="#" className="font-medium text-blue-600 hover:underline">
                 Terms of Use
               </a>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -21,6 +21,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { addToGuestCart } from '@/lib/cart/guestCart'
 import { addToCart } from '@/lib/cart/actions'
 import { useToast } from '@/hooks/useToast'
+import { computeSizeRecommendation } from '@/lib/recommendation'
+import SizeRecommendation from '@/components/product/SizeRecommendation'
+import SizeGuideModal from '@/components/product/SizeGuideModal'
 
 interface ProductVariant {
     id: string
@@ -29,7 +32,8 @@ interface ProductVariant {
     stock: number
     available_to_sell: number
     is_out_of_stock: boolean
-    options: any // JSONB
+    options: Record<string, unknown> // JSONB
+    images?: string[] // Variant-specific images
 }
 
 interface Product {
@@ -39,13 +43,50 @@ interface Product {
     description: string | null
     base_price: number
     image_url: string | null
+    images?: unknown  //  Product media pool
     category: string | null
     product_variants: ProductVariant[]
 }
 
+interface RelatedProduct {
+    id: string
+    name: string
+    slug: string
+    base_price: number
+    image_url: string | null
+    category: string | null
+}
 
+interface SizeChart {
+    id: string
+    name: string
+    measurements: any
+    fit_type: string | null
+}
 
-export default function ProductDetailClient({ product, relatedProducts = [] }: { product: Product, relatedProducts?: Product[] }) {
+interface UserSizebook {
+    id: string
+    user_uid: string
+    gender: string | null
+    height_cm: number | null
+    weight_kg: number | null
+    measurements: any
+    fit_preference: string | null
+}
+
+export default function ProductDetailClient({
+    product,
+    relatedProducts = [],
+    sizeChart = null,
+    userSizebook = null,
+    isAuthenticated = false
+}: {
+    product: Product
+    relatedProducts?: RelatedProduct[]
+    sizeChart?: SizeChart | null
+    userSizebook?: UserSizebook | null
+    isAuthenticated?: boolean
+}) {
     const router = useRouter()
     const { showSuccess, showError } = useToast()
     // Compute unique sizes and colors from actual variants
@@ -57,6 +98,24 @@ export default function ProductDetailClient({ product, relatedProducts = [] }: {
     const [isWishlisted, setIsWishlisted] = useState(false)
     const [expandedAccordion, setExpandedAccordion] = useState<string | null>('description')
     const [isAddingToCart, setIsAddingToCart] = useState(false)
+    const [showSizeGuide, setShowSizeGuide] = useState(false)
+
+    // Compute size recommendation
+    const sizeRecommendation = useMemo(() => {
+        if (!userSizebook || !sizeChart) return null
+
+        return computeSizeRecommendation({
+            user_measurements: userSizebook.measurements,
+            size_chart: sizeChart.measurements
+        })
+    }, [userSizebook, sizeChart])
+
+    // Pre-select recommended size (UI state only, user can override)
+    useEffect(() => {
+        if (sizeRecommendation && uniqueSizes.includes(sizeRecommendation.size_label)) {
+            setSelectedSize(sizeRecommendation.size_label)
+        }
+    }, [sizeRecommendation, uniqueSizes])
 
     // Pincode check state
     const [pincode, setPincode] = useState('')
@@ -96,12 +155,6 @@ export default function ProductDetailClient({ product, relatedProducts = [] }: {
     const selectedVariant = getSelectedVariant()
     const isOutOfStock = !selectedVariant || selectedVariant.is_out_of_stock
 
-    // Helper: Check if user is authenticated (has session cookie)
-    const isAuthenticated = () => {
-        if (typeof document === 'undefined') return false
-        return document.cookie.split(';').some(cookie => cookie.trim().startsWith('session='))
-    }
-
     const handleAddToCart = async () => {
         if (isOutOfStock) return
 
@@ -116,7 +169,7 @@ export default function ProductDetailClient({ product, relatedProducts = [] }: {
             }
 
             // HARD GUARD: Route to correct cart based on authentication
-            if (isAuthenticated()) {
+            if (isAuthenticated) {
                 // AUTHENTICATED: Use server action (writes to cart_items table)
                 const formData = new FormData()
                 formData.append('productId', product.id)
@@ -189,20 +242,69 @@ export default function ProductDetailClient({ product, relatedProducts = [] }: {
         }
     }
 
-    // Collect unique images from all variants
-    const variantImages = product.product_variants
-        .map(v => v.options?.images)
-        .filter(Boolean)
-        .flat()
-        .filter((img, index, self) => self.indexOf(img) === index) // Remove duplicates
+    // Build image gallery: Show ALL images, but reorder based on variant selection
+    // Using useMemo to ensure it recomputes when variant selection changes
+    const images = useMemo(() => {
 
-    const images = variantImages.length > 0
-        ? variantImages
-        : product.image_url
-            ? [product.image_url]
-            : []
+        let allImages: string[] = []
+
+        // 1. Collect all product media pool images
+        if (product.images && Array.isArray(product.images)) {
+            const productImages = product.images
+                .map((img: any) => typeof img === 'string' ? img : img.url)
+                .filter((url: string) => url)
+            allImages = [...productImages]
+
+        }
+
+        // 2. Add main product image if not already included
+        if (product.image_url && !allImages.includes(product.image_url)) {
+            allImages.push(product.image_url)
+        }
+
+        // 3. Collect ALL variant images from all variants
+        const allVariantImages = product.product_variants
+            .flatMap(v => v.images || [])
+            .filter((img, index, self) => self.indexOf(img) === index) // Remove duplicates
+
+        // 4. Add variant images that aren't already in the list
+        allVariantImages.forEach(img => {
+            if (!allImages.includes(img)) {
+                allImages.push(img)
+            }
+        })
+
+        // 5. Reorder: If a variant is selected and has an image, move it to first position
+        let finalImages: string[] = [...allImages]
+        const selectedVariant = getSelectedVariant()
+
+        if (selectedVariant?.images && selectedVariant.images.length > 0) {
+            const variantImage = selectedVariant.images[0]
+
+            if (finalImages.includes(variantImage)) {
+                // Remove variant image from current position
+                finalImages = finalImages.filter(img => img !== variantImage)
+                // Add it to the front
+                finalImages = [variantImage, ...finalImages]
+            }
+        }
+
+        // Fallback: if no images at all, use product image
+        if (finalImages.length === 0 && product.image_url) {
+            finalImages = [product.image_url]
+        }
+
+
+        return finalImages
+    }, [selectedSize, selectedColor, product.images, product.image_url, product.product_variants])
+
     const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
+    // Reset image index ONLY when variant changes, not when images array updates
+    useEffect(() => {
+
+        setCurrentImageIndex(0)
+    }, [selectedSize, selectedColor])  // Removed 'images' dependency!
 
     const toggleAccordion = (id: string) => {
         setExpandedAccordion(expandedAccordion === id ? null : id)
@@ -216,63 +318,22 @@ export default function ProductDetailClient({ product, relatedProducts = [] }: {
             <div className="max-w-7xl mx-auto md:px-6 lg:px-8 md:py-8">
                 <div className="flex flex-col md:flex-row gap-8 lg:gap-16">
 
-                    {/* Left Column: Images */}
+                    {/* Left Column: Images - Myntra Style */}
                     <div className="w-full md:w-1/2 lg:w-[55%]">
-                        {/* Mobile Carousel */}
-                        <div className="md:hidden relative aspect-[3/4] w-full bg-gray-100 overflow-hidden">
-                            <AnimatePresence mode='wait'>
-                                <motion.div
-                                    key={currentImageIndex}
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.3 }}
-                                    className="absolute inset-0"
+                        {/* Desktop: Vertical Scrolling Gallery (Myntra Style) */}
+                        <div className="hidden md:block space-y-2">
+                            {images.map((img, idx) => (
+                                <div
+                                    key={idx}
+                                    className="relative w-full aspect-[3/4] bg-gray-100 overflow-hidden"
                                 >
                                     <Image
-                                        src={images[currentImageIndex] || '/placeholder.png'}
-                                        alt={product.name}
-                                        fill
-                                        priority
-                                        className="object-cover"
-                                    />
-                                    {isOutOfStock && (
-                                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                            <span className="bg-red-500 text-white text-sm font-bold px-4 py-2 rounded">OUT OF STOCK</span>
-                                        </div>
-                                    )}
-                                </motion.div>
-                            </AnimatePresence>
-
-                            <button
-                                onClick={() => setIsWishlisted(!isWishlisted)}
-                                className="absolute top-4 right-4 p-3 rounded-full bg-white/80 backdrop-blur-sm shadow-sm z-10"
-                            >
-                                <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-gray-900'}`} />
-                            </button>
-
-                            {/* Carousel Indicators */}
-                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-                                {images.map((_, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => setCurrentImageIndex(idx)}
-                                        className={`w-2 h-2 rounded-full transition-all ${currentImageIndex === idx ? 'bg-white w-4' : 'bg-white/50'
-                                            }`}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Desktop Grid */}
-                        <div className="hidden md:grid grid-cols-2 gap-4">
-                            {images.map((img, idx) => (
-                                <div key={idx} className={`relative bg-gray-100 aspect-[3/4] rounded-lg overflow-hidden ${idx === 0 ? 'col-span-2 aspect-[4/5]' : ''}`}>
-                                    <Image
                                         src={img}
-                                        alt={`${product.name} ${idx + 1}`}
+                                        alt={`${product.name} - Image ${idx + 1}`}
                                         fill
-                                        className="object-cover hover:scale-105 transition-transform duration-500"
+                                        priority={idx === 0}
+                                        sizes="(max-width: 768px) 100vw, 50vw"
+                                        className="object-cover"
                                     />
                                     {isOutOfStock && idx === 0 && (
                                         <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
@@ -282,6 +343,69 @@ export default function ProductDetailClient({ product, relatedProducts = [] }: {
                                 </div>
                             ))}
                         </div>
+
+                        {/* Mobile: Carousel with Thumbnails */}
+                        <div className="md:hidden">
+                            <div className="relative aspect-[3/4] w-full bg-gray-100 overflow-hidden">
+                                <AnimatePresence mode='wait'>
+                                    <motion.div
+                                        key={currentImageIndex}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.3 }}
+                                        className="absolute inset-0"
+                                    >
+                                        <Image
+                                            src={images[currentImageIndex] || '/placeholder.png'}
+                                            alt={product.name}
+                                            fill
+                                            priority
+                                            className="object-cover"
+                                        />
+                                        {isOutOfStock && (
+                                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                                <span className="bg-red-500 text-white text-sm font-bold px-4 py-2 rounded">OUT OF STOCK</span>
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                </AnimatePresence>
+
+                                {/* Pagination Dots */}
+                                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+                                    {images.map((_, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => setCurrentImageIndex(idx)}
+                                            className={`w-2 h-2 rounded-full transition-all ${currentImageIndex === idx ? 'bg-white w-4' : 'bg-white/50'
+                                                }`}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Mobile Thumbnails */}
+                            <div className="mt-4 flex gap-2 overflow-x-auto pb-2 px-4">
+                                {images.map((img, idx) => (
+                                    <button
+                                        key={idx}
+                                        type="button"
+                                        onClick={() => setCurrentImageIndex(idx)}
+                                        style={{ backgroundImage: `url(${img})` }}
+                                        className={`relative flex-shrink-0 w-16 h-20 rounded-lg overflow-hidden border-2 transition-all bg-cover bg-center ${currentImageIndex === idx ? 'border-black' : 'border-gray-200'
+                                            }`}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Wishlist Button - Fixed for both */}
+                        <button
+                            onClick={() => setIsWishlisted(!isWishlisted)}
+                            className="fixed top-20 md:top-24 right-4 md:right-8 lg:right-16 p-3 rounded-full bg-white shadow-lg z-50 hover:scale-110 transition-transform"
+                        >
+                            <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-gray-900'}`} />
+                        </button>
                     </div>
 
                     {/* Right Column: Details */}
@@ -387,7 +511,12 @@ export default function ProductDetailClient({ product, relatedProducts = [] }: {
                         <div className="mb-6">
                             <div className="flex justify-between items-center mb-2">
                                 <p className="text-sm text-gray-700">Select Size</p>
-                                <button className="text-xs font-medium text-gray-900 underline decoration-gray-400 underline-offset-4">Size Guide</button>
+                                <button
+                                    onClick={() => setShowSizeGuide(true)}
+                                    className="text-xs font-medium text-gray-900 underline decoration-gray-400 underline-offset-4 hover:text-gray-700 transition-colors"
+                                >
+                                    Size Guide
+                                </button>
                             </div>
                             {uniqueSizes.length > 0 ? (
                                 <div className="grid grid-cols-5 gap-3">
@@ -409,16 +538,13 @@ export default function ProductDetailClient({ product, relatedProducts = [] }: {
                             )}
                         </div>
 
-                        {/* AI Recommendation */}
-                        <div className="bg-gray-50 rounded-xl p-4 mb-8 flex gap-3 items-center">
-                            <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white">
-                                <span className="text-xs font-bold">AI</span>
-                            </div>
-                            <div>
-                                <p className="text-sm font-bold text-gray-900">Recommended Size: M</p>
-                                <p className="text-xs text-gray-500">Based on your Daily Wear profile</p>
-                            </div>
-                        </div>
+                        {/* Size Recommendation */}
+                        <SizeRecommendation
+                            recommendation={sizeRecommendation}
+                            hasUserSizebook={!!userSizebook}
+                            isAuthenticated={isAuthenticated}
+                            sizeChartExists={!!sizeChart}
+                        />
 
                         {/* Desktop Actions */}
                         <div className="hidden md:flex gap-4 mb-8">
@@ -479,9 +605,12 @@ export default function ProductDetailClient({ product, relatedProducts = [] }: {
                                                 exit={{ height: 0, opacity: 0 }}
                                                 className="overflow-hidden"
                                             >
-                                                <p className="text-sm text-gray-600 py-2 leading-relaxed">
-                                                    {product.description || "Experience luxury with this premium piece from Lumière. Crafted with attention to detail and designed for the modern aesthetic."}
-                                                </p>
+                                                <div
+                                                    className="text-sm text-gray-600 leading-relaxed prose prose-sm max-w-none"
+                                                    dangerouslySetInnerHTML={{
+                                                        __html: product.description || "Experience luxury with this premium piece from Lumière. Crafted with attention to detail and designed for the modern aesthetic."
+                                                    }}
+                                                />
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
@@ -557,6 +686,14 @@ export default function ProductDetailClient({ product, relatedProducts = [] }: {
             <div className="hidden md:block fixed bottom-8 left-1/2 -translate-x-1/2 z-40">
                 {/* Can add a floating bar for desktop if scrolled past summary */}
             </div>
+
+            {/* Size Guide Modal */}
+            <SizeGuideModal
+                sizeChart={sizeChart?.measurements || null}
+                productName={product.name}
+                isOpen={showSizeGuide}
+                onClose={() => setShowSizeGuide(false)}
+            />
         </div>
     )
 }

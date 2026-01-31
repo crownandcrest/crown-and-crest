@@ -73,7 +73,7 @@ export async function GET(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: error.message,
+          error: error instanceof Error ? error.message : 'Unknown error',
           timestamp: new Date().toISOString(),
         },
         { status: 500 }

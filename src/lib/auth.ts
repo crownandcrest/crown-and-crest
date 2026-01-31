@@ -18,7 +18,10 @@ export async function getCurrentUser() {
     const [payloadB64, signatureB64] = parts
     
     // Verify signature
-    const secret = process.env.SESSION_SECRET || 'fallback-secret-change-in-production'
+    const secret = process.env.SESSION_SECRET
+    if (!secret) {
+      throw new Error('SESSION_SECRET environment variable is required for session security')
+    }
     const payload = Buffer.from(payloadB64, 'base64').toString('utf-8')
     
     const expectedSignature = crypto

@@ -13,7 +13,10 @@ function signSession(uid: string): string {
     iat: Date.now()
   })
   
-  const secret = process.env.SESSION_SECRET || 'fallback-secret-change-in-production'
+  const secret = process.env.SESSION_SECRET
+  if (!secret) {
+    throw new Error('SESSION_SECRET environment variable is required for session security')
+  }
   const signature = crypto
     .createHmac('sha256', secret)
     .update(payload)

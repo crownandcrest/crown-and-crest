@@ -2,6 +2,78 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
+// Razorpay webhook type definitions
+interface RazorpayAddress {
+  line1?: string
+  line2?: string
+  city?: string
+  state?: string
+  zipcode?: string
+  postal_code?: string
+  country?: string
+}
+
+interface RazorpayCustomerDetails {
+  name?: string
+  email?: string
+  contact?: string
+  shipping_address?: RazorpayAddress
+}
+
+interface RazorpayPaymentEntity {
+  id: string
+  amount: number
+  status: string
+  contact?: string
+  notes?: Record<string, string>
+  customer_details?: RazorpayCustomerDetails
+}
+
+interface RazorpayOrderEntity {
+  id: string
+  amount: number
+  cod_fee?: number
+  notes?: Record<string, string>
+  customer_details?: RazorpayCustomerDetails
+  shipping_address?: RazorpayAddress
+}
+
+interface RazorpayPaymentPayload {
+  payment: {
+    entity: RazorpayPaymentEntity
+  }
+  order?: {
+    entity: RazorpayOrderEntity
+  }
+}
+
+interface RazorpayOrderPayload {
+  order: {
+    entity: RazorpayOrderEntity
+  }
+}
+
+interface RazorpayWebhookEvent {
+  event: string
+  payload: RazorpayPaymentPayload | RazorpayOrderPayload
+}
+
+interface Order {
+  id: string
+  status: string
+  [key: string]: unknown
+}
+
+interface ShippingAddress {
+  fullName: string
+  addressLine1: string
+  addressLine2: string
+  city: string
+  state: string
+  pincode: string
+  country: string
+}
+
 /**
  * Razorpay Magic Checkout Webhook Handler
  * 
@@ -89,7 +161,7 @@ export async function POST(req: NextRequest) {
 /**
  * PREPAID PAYMENT SUCCESS
  */
-async function handlePaymentCaptured(order: any, payload: any, event: any) {
+async function handlePaymentCaptured(order: Order, payload: RazorpayPaymentPayload, event: RazorpayWebhookEvent) {
   const payment = payload.payment.entity
   
   console.log('[WEBHOOK] Processing payment.captured for order:', order.id)
@@ -119,7 +191,7 @@ async function handlePaymentCaptured(order: any, payload: any, event: any) {
 /**
  * COD ORDER CONFIRMED
  */
-async function handleOrderPaid(order: any, payload: any, event: any) {
+async function handleOrderPaid(order: Order, payload: RazorpayOrderPayload, event: RazorpayWebhookEvent) {
   const orderEntity = payload.order.entity
   
   console.log('[WEBHOOK] Processing order.paid (COD) for order:', order.id)
@@ -148,7 +220,7 @@ async function handleOrderPaid(order: any, payload: any, event: any) {
 /**
  * PAYMENT FAILED
  */
-async function handlePaymentFailed(order: any, payload: any) {
+async function handlePaymentFailed(order: Order, payload: RazorpayPaymentPayload | RazorpayOrderPayload) {
   console.log('[WEBHOOK] Processing payment.failed for order:', order.id)
 
   // Release stock reservations
@@ -176,8 +248,8 @@ async function handlePaymentFailed(order: any, payload: any) {
 /**
  * Extract shipping address from Razorpay payload
  */
-function extractShippingAddress(entity: any): any {
-  const address = entity.customer_details?.shipping_address || entity.shipping_address
+function extractShippingAddress(entity: RazorpayPaymentEntity | RazorpayOrderEntity): ShippingAddress | null {
+  const address = entity.customer_details?.shipping_address || ('shipping_address' in entity ? entity.shipping_address : undefined)
 
   if (!address) return null
 

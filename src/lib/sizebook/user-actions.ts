@@ -1,218 +1,376 @@
-// Phase 13: Sizebook Foundation - User Server Actions
-// Purpose: User profile management (save/update/get size measurements)
-// Guards: All actions require authenticated user (not admin)
+'use server'
 
-'use server';
+// ============================================
+// SIZEBOOK - USER SERVER ACTIONS
+// ============================================
+// User-owned CRUD only
+// Privacy-first RLS enforcement
+// No admin access
+// Architecture: One user = one body = one profile
+// ============================================
 
-import { supabaseServer } from '@/lib/supabase/server';
-import { getCurrentUser } from '@/lib/auth';
-import { validateMeasurements } from './recommendation';
-import type {
-  UserSizeProfile,
-  SaveUserSizeProfilePayload,
-  SizebookActionResult,
-} from '@/types/sizebook';
-
-// ==========================================
-// User Size Profile CRUD
-// ==========================================
+import { supabaseServer } from '@/lib/supabase/server'
+import { 
+  CreateSizebookPayload,
+  UpdateSizebookPayload,
+  UserSizebook,
+  SizebookCompleteness,
+  SizebookActionResult 
+} from './types'
+import { 
+  validateUserMeasurements,
+  validateHeight,
+  validateWeight,
+  validateGender,
+  validateFitPreference 
+} from './validation'
 
 /**
- * Save or update user's size profile for a category
- * Creates new profile if doesn't exist, updates if exists
- * 
- * @example
- * ```ts
- * const result = await saveUserSizeProfile({
- *   category: 'men_top',
- *   measurements: { chest_cm: 98, waist_cm: 84, shoulder_cm: 46, length_cm: 74 }
- * });
- * ```
+ * Get authenticated user
  */
-export async function saveUserSizeProfile(
-  payload: SaveUserSizeProfilePayload
-): Promise<SizebookActionResult<UserSizeProfile>> {
+async function getAuthenticatedUser() {
+  const supabase = await supabaseServer
+  const { data: { user }, error } = await supabase.auth.getUser()
+
+  if (error || !user) {
+    throw new Error('Authentication required')
+  }
+
+  return { user, supabase }
+}
+
+// ============================================
+// SIZEBOOK CRUD (USER-OWNED)
+// Principle: User has ONE body, not one per category
+// ============================================
+
+/**
+ * Create user's Sizebook profile
+ * One profile per user (not per category)
+ */
+export async function createSizebook(
+  payload: CreateSizebookPayload
+): Promise<SizebookActionResult<UserSizebook>> {
   try {
-    // Authentication guard
-    const user = await getCurrentUser();
-    if (!user) {
-      return { success: false, error: 'Authentication required' };
+    const { user, supabase } = await getAuthenticatedUser()
+
+    // Check if user already has a profile
+    const { data: existing } = await supabase
+      .from('user_sizebook')
+      .select('id')
+      .eq('user_uid', user.id)
+      .single()
+
+    if (existing) {
+      return { 
+        success: false, 
+        error: 'Sizebook profile already exists. Use update instead.' 
+      }
     }
 
-    // Validate measurements are within reasonable ranges
-    const validation = validateMeasurements(payload.measurements);
-    if (!validation.valid) {
-      return {
-        success: false,
-        error: `Invalid measurements: ${validation.errors.join(', ')}`,
-      };
+    // Validate measurements if provided
+    if (payload.measurements) {
+      const validation = validateUserMeasurements(payload.measurements)
+      if (!validation.valid) {
+        const errorMessages = validation.errors.map(e => `${e.field}: ${e.message}`).join(', ')
+        return { success: false, error: `Invalid measurements: ${errorMessages}` }
+      }
     }
 
-    // Upsert (insert or update if exists)
-    const { data, error } = await supabaseServer
-      .from('user_size_profile')
-      .upsert(
-        {
-          user_uid: user.uid,
-          category: payload.category,
-          measurements: payload.measurements,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: 'user_uid,category',  // Unique constraint
-        }
-      )
+    // Validate height if provided
+    if (payload.height_cm !== undefined) {
+      const heightError = validateHeight(payload.height_cm)
+      if (heightError) {
+        return { success: false, error: heightError.message }
+      }
+    }
+
+    // Validate weight if provided
+    if (payload.weight_kg !== undefined) {
+      const weightError = validateWeight(payload.weight_kg)
+      if (weightError) {
+        return { success: false, error: weightError.message }
+      }
+    }
+
+    // Validate gender if provided
+    if (payload.gender && !validateGender(payload.gender)) {
+      return { success: false, error: 'Invalid gender value' }
+    }
+
+    // Validate fit preference if provided
+    if (payload.fit_preference && !validateFitPreference(payload.fit_preference)) {
+      return { success: false, error: 'Invalid fit preference value' }
+    }
+
+    // Insert sizebook
+    const { data, error } = await supabase
+      .from('user_sizebook')
+      .insert({
+        user_uid: user.id,
+        gender: payload.gender || null,
+        height_cm: payload.height_cm || null,
+        weight_kg: payload.weight_kg || null,
+        measurements: payload.measurements || {},
+        fit_preference: payload.fit_preference || null,
+      })
       .select()
-      .single();
+      .single()
 
     if (error) {
-      console.error('[saveUserSizeProfile] Database error:', error);
-      return { success: false, error: 'Failed to save size profile' };
+      console.error('Error creating sizebook:', error)
+      return { success: false, error: error.message }
     }
 
-    return { success: true, data };
+    return { success: true, data: data as UserSizebook }
   } catch (error) {
-    console.error('[saveUserSizeProfile] Error:', error);
-    return { success: false, error: 'Failed to save size profile' };
+    console.error('Create sizebook error:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to create sizebook' 
+    }
   }
 }
 
 /**
- * Get user's size profile for a specific category
- * Returns null if user hasn't set up profile for this category
- * 
- * @example
- * ```ts
- * const result = await getUserSizeProfile('men_top');
- * if (result.success && result.data) {
- *   console.log('User chest:', result.data.measurements.chest_cm);
- * }
- * ```
+ * Update user's Sizebook profile
+ * Supports partial updates (progressive completion)
  */
-export async function getUserSizeProfile(
-  category: string
-): Promise<SizebookActionResult<UserSizeProfile | null>> {
+export async function updateSizebook(
+  payload: UpdateSizebookPayload
+): Promise<SizebookActionResult<UserSizebook>> {
   try {
-    // Authentication guard
-    const user = await getCurrentUser();
-    if (!user) {
-      return { success: false, error: 'Authentication required' };
+    const { user, supabase } = await getAuthenticatedUser()
+
+    // Build update object
+    const updates: Record<string, any> = {}
+
+    if (payload.gender !== undefined) {
+      if (payload.gender !== null && !validateGender(payload.gender)) {
+        return { success: false, error: 'Invalid gender value' }
+      }
+      updates.gender = payload.gender
     }
 
-    const { data, error } = await supabaseServer
-      .from('user_size_profile')
+    if (payload.height_cm !== undefined) {
+      const heightError = validateHeight(payload.height_cm)
+      if (heightError) {
+        return { success: false, error: heightError.message }
+      }
+      updates.height_cm = payload.height_cm
+    }
+
+    if (payload.weight_kg !== undefined) {
+      const weightError = validateWeight(payload.weight_kg)
+      if (weightError) {
+        return { success: false, error: weightError.message }
+      }
+      updates.weight_kg = payload.weight_kg
+    }
+
+    if (payload.measurements !== undefined) {
+      const validation = validateUserMeasurements(payload.measurements)
+      if (!validation.valid) {
+        const errorMessages = validation.errors.map(e => `${e.field}: ${e.message}`).join(', ')
+        return { success: false, error: `Invalid measurements: ${errorMessages}` }
+      }
+      updates.measurements = payload.measurements
+    }
+
+    if (payload.fit_preference !== undefined) {
+      if (payload.fit_preference !== null && !validateFitPreference(payload.fit_preference)) {
+        return { success: false, error: 'Invalid fit preference value' }
+      }
+      updates.fit_preference = payload.fit_preference
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return { success: false, error: 'No fields to update' }
+    }
+
+    // Update sizebook (RLS ensures user can only update their own)
+    const { data, error } = await supabase
+      .from('user_sizebook')
+      .update(updates)
+      .eq('user_uid', user.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating sizebook:', error)
+      
+      // No profile exists
+      if (error.code === 'PGRST116') {
+        return { success: false, error: 'Sizebook profile not found. Create one first.' }
+      }
+      
+      return { success: false, error: error.message }
+    }
+
+    return { success: true, data: data as UserSizebook }
+  } catch (error) {
+    console.error('Update sizebook error:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to update sizebook' 
+    }
+  }
+}
+
+/**
+ * Get current user's Sizebook profile
+ */
+export async function getSizebook(): Promise<SizebookActionResult<UserSizebook | null>> {
+  try {
+    const { user, supabase } = await getAuthenticatedUser()
+
+    const { data, error } = await supabase
+      .from('user_sizebook')
       .select('*')
-      .eq('user_uid', user.uid)
-      .eq('category', category)
-      .maybeSingle();  // Returns null if not found (not an error)
+      .eq('user_uid', user.id)
+      .single()
 
     if (error) {
-      console.error('[getUserSizeProfile] Database error:', error);
-      return { success: false, error: 'Failed to get size profile' };
+      // Not found is not an error (user simply hasn't created profile yet)
+      if (error.code === 'PGRST116') {
+        return { success: true, data: null }
+      }
+      console.error('Error fetching sizebook:', error)
+      return { success: false, error: error.message }
     }
 
-    return { success: true, data };
+    return { success: true, data: data as UserSizebook }
   } catch (error) {
-    console.error('[getUserSizeProfile] Error:', error);
-    return { success: false, error: 'Failed to get size profile' };
+    console.error('Get sizebook error:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to fetch sizebook' 
+    }
   }
 }
 
 /**
- * Get all size profiles for current user (all categories)
- * Useful for "My Profile" page showing all saved measurements
+ * Delete current user's Sizebook profile
  */
-export async function getAllUserSizeProfiles(): Promise<
-  SizebookActionResult<UserSizeProfile[]>
-> {
+export async function deleteSizebook(): Promise<SizebookActionResult> {
   try {
-    // Authentication guard
-    const user = await getCurrentUser();
-    if (!user) {
-      return { success: false, error: 'Authentication required' };
-    }
+    const { user, supabase } = await getAuthenticatedUser()
 
-    const { data, error } = await supabaseServer
-      .from('user_size_profile')
-      .select('*')
-      .eq('user_uid', user.uid)
-      .order('category', { ascending: true });
-
-    if (error) {
-      console.error('[getAllUserSizeProfiles] Database error:', error);
-      return { success: false, error: 'Failed to get size profiles' };
-    }
-
-    return { success: true, data: data ?? [] };
-  } catch (error) {
-    console.error('[getAllUserSizeProfiles] Error:', error);
-    return { success: false, error: 'Failed to get size profiles' };
-  }
-}
-
-/**
- * Delete user's size profile for a specific category
- * Useful if user wants to remove their saved measurements
- */
-export async function deleteUserSizeProfile(
-  category: string
-): Promise<SizebookActionResult> {
-  try {
-    // Authentication guard
-    const user = await getCurrentUser();
-    if (!user) {
-      return { success: false, error: 'Authentication required' };
-    }
-
-    const { error } = await supabaseServer
-      .from('user_size_profile')
+    const { error } = await supabase
+      .from('user_sizebook')
       .delete()
-      .eq('user_uid', user.uid)
-      .eq('category', category);
+      .eq('user_uid', user.id)
 
     if (error) {
-      console.error('[deleteUserSizeProfile] Database error:', error);
-      return { success: false, error: 'Failed to delete size profile' };
+      console.error('Error deleting sizebook:', error)
+      return { success: false, error: error.message }
     }
 
-    return { success: true, data: undefined };
+    return { success: true }
   } catch (error) {
-    console.error('[deleteUserSizeProfile] Error:', error);
-    return { success: false, error: 'Failed to delete size profile' };
+    console.error('Delete sizebook error:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to delete sizebook' 
+    }
   }
 }
 
-// ==========================================
-// Public Helper (No Auth Required)
-// ==========================================
-
 /**
- * Check if user has a size profile for a category (public, no sensitive data)
- * Used by PDP to decide whether to show "Set up your profile" prompt
+ * Check if current user has a Sizebook profile
  */
-export async function hasUserSizeProfile(
-  category: string
-): Promise<SizebookActionResult<boolean>> {
+export async function hasSizebook(): Promise<SizebookActionResult<boolean>> {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return { success: true, data: false };  // Not logged in = no profile
-    }
+    const { user, supabase } = await getAuthenticatedUser()
 
-    const { count, error } = await supabaseServer
-      .from('user_size_profile')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_uid', user.uid)
-      .eq('category', category);
+    const { data, error } = await supabase
+      .from('user_sizebook')
+      .select('id')
+      .eq('user_uid', user.id)
+      .single()
 
     if (error) {
-      console.error('[hasUserSizeProfile] Database error:', error);
-      return { success: false, error: 'Failed to check profile' };
+      if (error.code === 'PGRST116') {
+        return { success: true, data: false }
+      }
+      console.error('Error checking sizebook:', error)
+      return { success: false, error: error.message }
     }
 
-    return { success: true, data: (count ?? 0) > 0 };
+    return { success: true, data: !!data }
   } catch (error) {
-    console.error('[hasUserSizeProfile] Error:', error);
-    return { success: false, error: 'Failed to check profile' };
+    console.error('Has sizebook error:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to check sizebook' 
+    }
+  }
+}
+
+/**
+ * Get Sizebook completeness stats
+ */
+export async function getSizebookCompleteness(): Promise<SizebookActionResult<SizebookCompleteness>> {
+  try {
+    const { user, supabase } = await getAuthenticatedUser()
+
+    const { data, error } = await supabase
+      .rpc('get_sizebook_completeness', { p_user_uid: user.id })
+      .single()
+
+    if (error) {
+      console.error('Error fetching completeness:', error)
+      return { success: false, error: error.message }
+    }
+
+    return { success: true, data: data as SizebookCompleteness }
+  } catch (error) {
+    console.error('Get completeness error:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to fetch completeness' 
+    }
+  }
+}
+
+// ============================================
+// PROGRESSIVE UPDATE HELPERS
+// ============================================
+
+/**
+ * Update specific measurement (progressive completion)
+ */
+export async function updateMeasurement(
+  field: string,
+  value: number
+): Promise<SizebookActionResult<UserSizebook>> {
+  try {
+    const { user, supabase } = await getAuthenticatedUser()
+
+    // Get current measurements
+    const { data: current } = await supabase
+      .from('user_sizebook')
+      .select('measurements')
+      .eq('user_uid', user.id)
+      .single()
+
+    const currentMeasurements = (current?.measurements as Record<string, number>) || {}
+    const updatedMeasurements = { ...currentMeasurements, [field]: value }
+
+    // Validate updated measurements
+    const validation = validateUserMeasurements(updatedMeasurements)
+    if (!validation.valid) {
+      const errorMessages = validation.errors.map(e => e.message).join(', ')
+      return { success: false, error: errorMessages }
+    }
+
+    // Update
+    return updateSizebook({ measurements: updatedMeasurements })
+  } catch (error) {
+    console.error('Update measurement error:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to update measurement' 
+    }
   }
 }

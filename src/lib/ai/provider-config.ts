@@ -38,7 +38,7 @@ export interface ConfigField {
   placeholder?: string
   helpText?: string
   options?: { value: string; label: string }[]
-  defaultValue?: any
+  defaultValue?: unknown
 }
 
 /**

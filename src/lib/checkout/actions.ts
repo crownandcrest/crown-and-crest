@@ -63,8 +63,16 @@ export async function validateCartForCheckout() {
   }
 
   // Create availability map for fast lookup
-  const availabilityMap = new Map()
-  availabilityData.forEach((av: any) => {
+  const availabilityMap = new Map<string, {
+    variant_id: string
+    available_to_sell: number  
+    is_out_of_stock: boolean
+  }>()
+  availabilityData.forEach((av: {
+    variant_id: string
+    available_to_sell: number
+    is_out_of_stock: boolean
+  }) => {
     availabilityMap.set(av.variant_id, av)
   })
 

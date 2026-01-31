@@ -81,15 +81,16 @@ export default function PhoneVerificationModal({
             setConfirmationResult(confirmation)
             setState('OTP_SENT')
             setResendTimer(30) // 30 second cooldown
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Send OTP error:', error)
 
+            const firebaseError = error as { code?: string }
             let errorMessage = 'Failed to send OTP'
-            if (error.code === 'auth/too-many-requests') {
+            if (firebaseError.code === 'auth/too-many-requests') {
                 errorMessage = 'Too many attempts. Please try again later.'
-            } else if (error.code === 'auth/invalid-phone-number') {
+            } else if (firebaseError.code === 'auth/invalid-phone-number') {
                 errorMessage = 'Invalid phone number format'
-            } else if (error.code === 'auth/provider-already-linked') {
+            } else if (firebaseError.code === 'auth/provider-already-linked') {
                 errorMessage = 'This phone is already linked to your account'
                 setState('VERIFIED')
                 setTimeout(() => onVerified(), 1000)
@@ -119,13 +120,14 @@ export default function PhoneVerificationModal({
                 onVerified()
                 onClose()
             }, 1500)
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Verify OTP error:', error)
 
+            const firebaseError = error as { code?: string }
             let errorMessage = 'Invalid OTP'
-            if (error.code === 'auth/invalid-verification-code') {
+            if (firebaseError.code === 'auth/invalid-verification-code') {
                 errorMessage = 'Invalid OTP. Please check and try again.'
-            } else if (error.code === 'auth/code-expired') {
+            } else if (firebaseError.code === 'auth/code-expired') {
                 errorMessage = 'OTP expired. Please request a new one.'
             }
 

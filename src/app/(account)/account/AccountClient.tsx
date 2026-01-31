@@ -74,11 +74,11 @@ export default function AccountClient() {
           <p className="text-gray-600 text-sm">Manage your saved delivery addresses</p>
         </div>
 
-        {/* Size Book */}
-        <div className="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push('/account/sizebook')}>
+        {/* Size Profile */}
+        <div className="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push('/account/size-profile')}>
           <div className="text-2xl font-bold text-blue-600 mb-2">📏</div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-1">Size Guide</h2>
-          <p className="text-gray-600 text-sm">View and save your size measurements</p>
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Size Profile</h2>
+          <p className="text-gray-600 text-sm">Manage your body measurements for better size suggestions</p>
         </div>
       </div>
 

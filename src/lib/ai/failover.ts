@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AI Failover System
  * Intelligent multi-model failover with automatic rate limit handling
  */
@@ -88,11 +88,12 @@ export async function generateWithFailover(
         failedModels,
         latency: totalTime
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       const latency = Date.now() - attemptStart
       failedModels.push(modelId)
       
-      console.error(`[Failover] ✗ Failed with ${modelId}:`, error.message)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error(`[Failover] ✗ Failed with ${modelId}:`, errorMessage)
       
       // Detect error type
       const errorType = detectErrorType(error)
@@ -122,14 +123,15 @@ export async function generateWithFailover(
       if (errorType === 'model_not_found') {
         console.log(`[Failover] Model ${modelId} not found, marking as unhealthy`)
         
-        await markModelUnhealthy(modelId, error.message)
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        await markModelUnhealthy(modelId, errorMessage)
         
         await createNotification({
           type: 'model_deleted',
           severity: 'error',
           model_id: modelId,
           message: `Model ${modelId} is no longer available`,
-          details: { error: error.message }
+          details: { error: error instanceof Error ? error.message : 'Unknown error' }
         })
         
         // Continue to next model
@@ -201,8 +203,8 @@ async function getFailoverConfig(): Promise<FailoverConfig | null> {
 /**
  * Detect error type from error message
  */
-function detectErrorType(error: any): string {
-  const msg = error.message?.toLowerCase() || ''
+function detectErrorType(error: unknown): string {
+  const msg = (error instanceof Error ? error.message : '')?.toLowerCase() || ''
   
   if (msg.includes('rate limit') || msg.includes('429') || msg.includes('too many requests')) {
     return 'rate_limit'

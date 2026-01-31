@@ -84,18 +84,6 @@ const nextConfig = {
   sassOptions: {
     silenceDeprecations: ['legacy-js-api'],
   },
-
-  // Disable ESLint during build for faster deployment
-  // Linting can still be run separately with npm run lint
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-
-  // Temporarily disable TypeScript errors during build for deployment
-  // Type checking can still be run separately with tsc --noEmit
-  typescript: {
-    ignoreBuildErrors: true,
-  },
 } satisfies NextConfig;
 
 export default nextConfig;

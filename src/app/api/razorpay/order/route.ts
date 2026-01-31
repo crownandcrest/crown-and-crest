@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { createRazorpayOrder } from '@/lib/razorpay'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { validateCartForCheckout } from '@/lib/checkout/actions'
+import { rateLimit, RATE_LIMITS, getUserRateLimitKey } from '@/lib/rate-limit'
 
 /**
  * Razorpay Magic Checkout Order Creation API
@@ -26,6 +27,17 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('[MAGIC_CHECKOUT] Creating order for user:', user.uid)
+
+    // Rate limit check
+    const rateLimitKey = getUserRateLimitKey('order:create', user.uid)
+    const { success: withinLimit } = await rateLimit(rateLimitKey, RATE_LIMITS.ORDER_CREATION)
+    if (!withinLimit) {
+      console.log('[MAGIC_CHECKOUT] Rate limit exceeded for user:', user.uid)
+      return NextResponse.json(
+        { error: 'Too many order attempts. Please wait a moment and try again.' },
+        { status: 429 }
+      )
+    }
 
     // 1️⃣ VALIDATE CART
     const validation = await validateCartForCheckout()

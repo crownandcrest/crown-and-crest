@@ -6,10 +6,10 @@ import { motion } from 'framer-motion'
 import { useToast } from '@/hooks/useToast'
 import { useRouter } from 'next/navigation'
 
-export default function OrderFailureClient({ orderData }: { orderData: any }) {
+export default function OrderFailureClient({ orderdata }: { orderdata: Record<string, unknown> }) {
     const { showSuccess } = useToast()
     const router = useRouter()
-    const { order, genericError } = orderData
+    const { order, genericError } = orderdata as { order?: { id: string; amount: number }; genericError?: boolean }
 
     // Handle generic error case (unauthenticated or order not found)
     if (genericError || !order) {

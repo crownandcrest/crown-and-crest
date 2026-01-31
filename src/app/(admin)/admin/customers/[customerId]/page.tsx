@@ -7,7 +7,34 @@ import { ArrowLeft, Mail, Phone, MapPin, Calendar, ShoppingBag, TrendingUp, Cred
 export default function CustomerDetailPage({ params }: { params: Promise<{ customerId: string }> }) {
     const { customerId } = use(params)
     const [isLoading, setIsLoading] = useState(true)
-    const [customer, setCustomer] = useState<any>(null)
+    interface CustomerData {
+        id: string
+        firstName: string
+        lastName: string
+        email: string
+        phone: string
+        joinDate: string
+        ordersCount: number
+        totalSpent: number
+        avgOrderValue: number
+        lastOrderDate: string
+        addresses: Array<{
+            type: string
+            street: string
+            city: string
+            state: string
+            zip: string
+            country: string
+        }>
+        recentOrders: Array<{
+            id: string
+            date: string
+            total: number
+            status: string
+            items: number
+        }>
+    }
+    const [customer, setCustomer] = useState<CustomerData | null>(null)
 
     useEffect(() => {
         // Mock Data Fetching
@@ -47,6 +74,14 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ custo
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
                 <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        )
+    }
+
+    if (!customer) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <div className="text-gray-500">Customer not found</div>
             </div>
         )
     }
@@ -129,7 +164,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ custo
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {customer.recentOrders.map((order: any) => (
+                                    {customer.recentOrders.map((order) => (
                                         <tr key={order.id} className="hover:bg-gray-50 transition-colors cursor-pointer group">
                                             <td className="px-6 py-4 font-semibold text-gray-900 group-hover:text-primary transition-colors">
                                                 {order.id}
@@ -137,8 +172,8 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ custo
                                             <td className="px-6 py-4 text-gray-600">{order.date}</td>
                                             <td className="px-6 py-4">
                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
-                                                        order.status === 'Returned' ? 'bg-red-100 text-red-700' :
-                                                            'bg-gray-100 text-gray-700'
+                                                    order.status === 'Returned' ? 'bg-red-100 text-red-700' :
+                                                        'bg-gray-100 text-gray-700'
                                                     }`}>
                                                     {order.status}
                                                 </span>
@@ -184,7 +219,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ custo
                             <h3 className="font-bold text-gray-900">Default Address</h3>
                             <button className="text-xs font-semibold text-primary hover:underline">Manage</button>
                         </div>
-                        {customer.addresses.map((addr: any, idx: number) => (
+                        {customer.addresses.map((addr, idx: number) => (
                             <div key={idx} className="flex items-start gap-3">
                                 <MapPin className="w-4 h-4 text-gray-400 mt-1" />
                                 <div className="text-sm text-gray-600 leading-relaxed">

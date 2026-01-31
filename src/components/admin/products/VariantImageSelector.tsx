@@ -53,25 +53,35 @@ export default function VariantImageSelector({
         setIsUploading(true)
 
         try {
-            const formData = new FormData()
-            Array.from(files).forEach(file => {
-                formData.append('files', file)
+            // Upload each file using the Cloudinary action
+            const uploadPromises = Array.from(files).map(async (file) => {
+                const formData = new FormData()
+                formData.append('file', file)
+
+                // Use the uploadProductImage server action
+                const { uploadProductImage } = await import('@/lib/cloudinary/actions')
+                const result = await uploadProductImage(formData)
+
+                // Result is Cloudinary response with secure_url
+                if (!result || !result.secure_url) {
+                    throw new Error('Upload failed - no URL returned')
+                }
+
+                return result.secure_url
             })
 
-            const response = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
-            })
-
-            if (!response.ok) throw new Error('Upload failed')
-
-            const { urls } = await response.json()
+            const urls = await Promise.all(uploadPromises)
+            console.log('[VariantImageSelector] Uploaded URLs:', urls)
 
             // Add newly uploaded images to selection
-            setSelectedImages(prev => [...prev, ...urls])
+            setSelectedImages(prev => {
+                const updated = [...prev, ...urls]
+                console.log('[VariantImageSelector] Updated selectedImages:', updated)
+                return updated
+            })
         } catch (error) {
             console.error('Upload error:', error)
-            alert('Failed to upload images')
+            alert('Failed to upload images. Please try again.')
         } finally {
             setIsUploading(false)
         }
@@ -94,6 +104,7 @@ export default function VariantImageSelector({
                             src={firstImage}
                             alt="Variant"
                             fill
+                            sizes="40px"
                             className="object-cover"
                         />
                     </div>
@@ -126,11 +137,46 @@ export default function VariantImageSelector({
 
                         {/* Content */}
                         <div className="flex-1 overflow-y-auto p-4">
+                            {/* Selected Images Preview */}
+                            {selectedImages.length > 0 && (
+                                <div className="mb-6">
+                                    <h4 className="text-sm font-medium text-gray-700 mb-3">
+                                        Selected for this Variant ({selectedImages.length})
+                                    </h4>
+                                    <div className="grid grid-cols-4 gap-3">
+                                        {selectedImages.map((imageUrl, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="relative aspect-square rounded-lg overflow-hidden border-2 border-green-500 ring-2 ring-green-200"
+                                            >
+                                                <Image
+                                                    src={imageUrl}
+                                                    alt={`Selected ${idx + 1}`}
+                                                    fill
+                                                    sizes="(max-width: 768px) 25vw, 150px"
+                                                    className="object-cover"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleImageSelection(imageUrl)}
+                                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                                <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-green-500 text-white text-[10px] font-bold rounded">
+                                                    ✓
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Available Images Grid */}
                             {availableImages.length > 0 && (
                                 <div className="mb-6">
                                     <h4 className="text-sm font-medium text-gray-700 mb-3">
-                                        Product Images
+                                        Product Images (click to add/remove)
                                     </h4>
                                     <div className="grid grid-cols-4 gap-3">
                                         {availableImages.map((imageUrl, idx) => {
@@ -141,14 +187,15 @@ export default function VariantImageSelector({
                                                     type="button"
                                                     onClick={() => toggleImageSelection(imageUrl)}
                                                     className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${isSelected
-                                                            ? 'border-blue-500 ring-2 ring-blue-200'
-                                                            : 'border-gray-200 hover:border-gray-300'
+                                                        ? 'border-blue-500 ring-2 ring-blue-200'
+                                                        : 'border-gray-200 hover:border-gray-300'
                                                         }`}
                                                 >
                                                     <Image
                                                         src={imageUrl}
                                                         alt={`Image ${idx + 1}`}
                                                         fill
+                                                        sizes="(max-width: 768px) 25vw, 150px"
                                                         className="object-cover"
                                                     />
                                                     {isSelected && (

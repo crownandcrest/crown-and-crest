@@ -9,5 +9,5 @@ export const metadata: Metadata = {
 
 export default async function CartPage() {
     const user = await getCurrentUser()
-    return <CartClient user={user} />
+    return <CartClient user={user ?? undefined} />
 }

@@ -81,9 +81,29 @@ export async function POST(req: NextRequest) {
           
           // Calculate total weight from items
           const items = order.order_items || []
-          orderWeight = items.reduce((total: number, item: any) => {
-            const weight = item.variants?.products?.shipping_weight || 0.5
-            return total + (weight * item.quantity)
+          interface OrderItem {
+            quantity: number
+            variants?: {
+              products?: {
+                shipping_weight?: number
+              } |  {
+                shipping_weight?: number
+              }[]
+            } | {
+              products?: {
+                shipping_weight?: number  
+              } | {
+                shipping_weight?: number
+              }[]
+            }[]
+          }
+          orderWeight = items.reduce((total: number, item: unknown) => {
+            const orderItem = item as OrderItem
+            const variantsArray = Array.isArray(orderItem.variants) ? orderItem.variants : [orderItem.variants]
+            const productsData = variantsArray[0]?.products
+            const productsArray = Array.isArray(productsData) ? productsData : [productsData]
+            const weight = productsArray[0]?.shipping_weight || 0.5
+            return total + (weight * orderItem.quantity)
           }, 0)
           
           orderWeight = Math.max(orderWeight, 0.5) // Minimum 500g

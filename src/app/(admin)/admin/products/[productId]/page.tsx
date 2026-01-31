@@ -37,14 +37,23 @@ export default function EditProductPage({ params }: { params: Promise<{ productI
                 return
             }
 
+            // Browser-safe ID generator
+            const generateId = () => {
+                if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
+                    return window.crypto.randomUUID()
+                }
+                // Fallback for older browsers
+                return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+            }
+
             // Transform for Form
             // Unique options
             const uniqueSizes = Array.from(new Set(variants?.map(v => v.size).filter(Boolean))) as string[]
             const uniqueColors = Array.from(new Set(variants?.map(v => v.color).filter(Boolean))) as string[]
 
             const options = []
-            if (uniqueSizes.length > 0) options.push({ id: crypto.randomUUID(), name: 'Size', values: uniqueSizes })
-            if (uniqueColors.length > 0) options.push({ id: crypto.randomUUID(), name: 'Color', values: uniqueColors })
+            if (uniqueSizes.length > 0) options.push({ id: generateId(), name: 'Size', values: uniqueSizes })
+            if (uniqueColors.length > 0) options.push({ id: generateId(), name: 'Color', values: uniqueColors })
 
             const transformedVariants = variants?.map(v => ({
                 id: v.id,
@@ -52,7 +61,7 @@ export default function EditProductPage({ params }: { params: Promise<{ productI
                 price: v.price_override || product.base_price,
                 stock: v.stock_quantity,
                 sku: v.sku,
-                images: v.images || [],
+                imageUrl: v.images?.[0] || null,  // Transform images array to single imageUrl for ProductForm
                 options: {
                     ...(v.size && { Size: v.size }),
                     ...(v.color && { Color: v.color })
@@ -61,7 +70,7 @@ export default function EditProductPage({ params }: { params: Promise<{ productI
 
             // Ensure images have IDs (migrated data might not)
             const images = (product.images || []).map((img: any) => ({
-                id: img.id || crypto.randomUUID(),
+                id: img.id || generateId(),
                 url: img.url,
                 isPrimary: img.isPrimary || false
             }))

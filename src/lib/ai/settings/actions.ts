@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/admin/auth'
@@ -46,15 +46,22 @@ export async function getAIProviders(): Promise<AIProvider[]> {
     `)
     .order('display_name')
 
-  if (error) {
-    console.error('Error fetching AI providers:', error)
-    return []
+  if (!providers) return []
+
+  interface DbApiKey {
+    id: string
+    provider_id: string
+    label: string | null
+    is_active: boolean
+    encrypted_key: string
+    last_used_at: string | null
+    created_at: string
   }
 
   // Mask API keys before sending to client
   return providers.map(provider => ({
     ...provider,
-    keys: provider.ai_api_keys.map((key: any) => ({
+    keys: provider.ai_api_keys.map((key: DbApiKey) => ({
       id: key.id,
       provider_id: key.provider_id,
       label: key.label,
@@ -74,7 +81,7 @@ export async function saveApiKey(
   providerNameOrId: string,
   apiKey: string,
   label?: string,
-  config?: Record<string, any>,
+  config?: Record<string, unknown>,
   selectedModel?: string,
   selectedModels?: string[],  // NEW: Multiple models for failover
   modelPriority?: string[]     // NEW: Priority order for failover
@@ -138,9 +145,9 @@ export async function saveApiKey(
 
     revalidatePath('/admin/settings/ai')
     return { success: true }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in saveApiKey:', error)
-    return { success: false, error: error.message || 'Failed to save API key' }
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to save API key' }
   }
 }
 
@@ -196,9 +203,9 @@ export async function setActiveApiKey(
 
     revalidatePath('/admin/settings/ai')
     return { success: true }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in setActiveApiKey:', error)
-    return { success: false, error: error.message || 'Failed to activate API key' }
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to activate API key' }
   }
 }
 
@@ -246,11 +253,11 @@ export async function deleteApiKey(
     console.log('[deleteApiKey] Deletion successful')
     revalidatePath('/admin/settings/ai')
     return { success: true }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[deleteApiKey] Exception caught:', error)
     return { 
       success: false, 
-      error: error.message || 'An unexpected error occurred while deleting the API key' 
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while deleting the API key' 
     }
   }
 }
@@ -326,7 +333,7 @@ export async function testApiKeyConnection(
     }
 
     const decryptedKey = decrypt(key.encrypted_key)
-    const provider = key.ai_providers as any
+    const provider = (key.ai_providers as any[])[0] as { name: string; base_url: string | null }
 
     // Make a simple test request based on provider
     // This is a placeholder - actual implementation depends on provider
@@ -336,8 +343,8 @@ export async function testApiKeyConnection(
       success: true, 
       message: `Successfully connected to ${provider.name}` 
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error testing API key:', error)
-    return { success: false, error: error.message || 'Connection test failed' }
+    return { success: false, error: error instanceof Error ? error.message : 'Connection test failed' }
   }
 }

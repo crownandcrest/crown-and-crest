@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { adminAuth } from '@/lib/firebase/admin'
 import { getCurrentUser } from '@/lib/auth'
 
@@ -55,9 +55,10 @@ export async function POST(req: NextRequest) {
           message: 'This number is already registered to another account. Please use a different number.'
         })
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Phone not found in Firebase - available for verification
-      if (error.code === 'auth/user-not-found') {
+      const firebaseError = error as { code?: string }
+      if (firebaseError.code === 'auth/user-not-found') {
         return NextResponse.json({
           status: 'AVAILABLE',
           needsVerification: true,

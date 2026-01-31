@@ -30,7 +30,7 @@ interface Order {
     tracking_id?: string
     customer_name?: string
     customer_phone?: string
-    shipping_address?: any
+    shipping_address?: Record<string, unknown>
     estimated_delivery_date?: string
 }
 

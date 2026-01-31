@@ -7,6 +7,13 @@ import { supabaseServer } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import type { CartItem } from '@/types/cart'
 import { getCurrentUser } from '@/lib/auth'
+import { rateLimit, RATE_LIMITS, getUserRateLimitKey } from '@/lib/rate-limit'
+
+interface VariantAvailability {
+  variant_id: string
+  available_to_sell: number
+  is_out_of_stock: boolean
+}
 
 async function ensureUserUid(uid?: string): Promise<string> {
   if (uid) return uid
@@ -40,6 +47,10 @@ export async function getCart(uid?: string): Promise<CartItem[]> {
         color,
         price_override,
         stock_quantity,
+        low_stock_threshold,
+        enabled,
+        position,
+        created_at,
         product_id,
         products:product_id (
           id,
@@ -61,14 +72,14 @@ export async function getCart(uid?: string): Promise<CartItem[]> {
 
   // Get reservation-aware availability for all cart variants
   const variantIds = data.map(item => item.variant_id).filter(Boolean)
-  const availabilityMap = new Map<string, any>()
+  const availabilityMap = new Map<string, VariantAvailability>()
   
   if (variantIds.length > 0) {
     const { data: availabilityData, error: availError } = await supabaseServer
       .rpc('get_variant_availability', { variant_ids: variantIds })
     
     if (!availError && availabilityData) {
-      availabilityData.forEach((av: any) => {
+      availabilityData.forEach((av: VariantAvailability) => {
         availabilityMap.set(av.variant_id, av)
       })
     } else {
@@ -99,13 +110,23 @@ export async function getCart(uid?: string): Promise<CartItem[]> {
         product_id: product.id,
         products: product,
         variants: {
-          ...variant,
+          id: variant.id,
+          product_id: variant.product_id,
+          sku: variant.sku,
+          size: variant.size,
+          color: variant.color,
+          price_override: variant.price_override,
+          stock_quantity: variant.stock_quantity,
+          low_stock_threshold: variant.low_stock_threshold || 10,
+          enabled: variant.enabled,
+          position: variant.position || 0,
+          created_at: variant.created_at,
           available_to_sell: availability?.available_to_sell ?? variant.stock_quantity,
           is_out_of_stock: availability?.is_out_of_stock ?? false
         },
       }
     })
-    .filter((item) => item !== null) as CartItem[]
+    .filter((item): item is NonNullable<typeof item> => item !== null) as CartItem[]
 }
 
 
@@ -119,6 +140,13 @@ export async function addToCart(
   try {
     // Get authenticated user
     const userUid = await ensureUserUid()
+
+    // Rate limit check
+    const rateLimitKey = getUserRateLimitKey('cart:add', userUid)
+    const { success: withinLimit } = await rateLimit(rateLimitKey, RATE_LIMITS.CART_MUTATION)
+    if (!withinLimit) {
+      return { success: false, error: 'Too many requests. Please wait a moment and try again.' }
+    }
 
     const productId = formData.get('productId') as string
     const variantId = formData.get('variantId') as string | null
@@ -254,6 +282,13 @@ export async function removeFromCart(identifier: string | FormData): Promise<voi
   const cartItemId = typeof identifier === 'string' ? identifier : (identifier.get('cartItemId') as string)
   const userUid = await ensureUserUid()
 
+  // Rate limit check
+  const rateLimitKey = getUserRateLimitKey('cart:remove', userUid)
+  const { success: withinLimit } = await rateLimit(rateLimitKey, RATE_LIMITS.CART_MUTATION)
+  if (!withinLimit) {
+    throw new Error('Too many requests. Please wait a moment and try again.')
+  }
+
   if (!cartItemId) {
     throw new Error('Invalid cart item')
   }
@@ -277,6 +312,13 @@ export async function removeFromCart(identifier: string | FormData): Promise<voi
 ========================= */
 export async function updateCartQuantity(cartItemId: string, quantity: number): Promise<void> {
   const userUid = await ensureUserUid()
+
+  // Rate limit check
+  const rateLimitKey = getUserRateLimitKey('cart:update', userUid)
+  const { success: withinLimit } = await rateLimit(rateLimitKey, RATE_LIMITS.CART_MUTATION)
+  if (!withinLimit) {
+    throw new Error('Too many requests. Please wait a moment and try again.')
+  }
 
   if (quantity < 1) {
     throw new Error('Invalid quantity')
@@ -355,6 +397,10 @@ export async function getGuestCartDetails(items: { productId: string; variantId:
         price_override,
         stock_quantity,
         product_id,
+        low_stock_threshold,
+        enabled,
+        position,
+        created_at,
         products:product_id (
           id,
           name,
@@ -375,7 +421,7 @@ export async function getGuestCartDetails(items: { productId: string; variantId:
   }
 
   // Map back to items to preserve quantity and order
-  return items.map(item => {
+  const mapped = items.map(item => {
     const variant = data.find(v => v.id === item.variantId)
     if (!variant || !variant.products) return null
 
@@ -388,9 +434,23 @@ export async function getGuestCartDetails(items: { productId: string; variantId:
       variant_id: item.variantId!,
       product_id: product.id,
       products: product,
-      variants: variant
+      variants: {
+        id: variant.id,
+        product_id: variant.product_id,
+        sku: variant.sku,
+        size: variant.size,
+        color: variant.color,
+        price_override: variant.price_override,
+        stock_quantity: variant.stock_quantity,
+        low_stock_threshold: variant.low_stock_threshold || 10,
+        enabled: variant.enabled,
+        position: variant.position || 0,
+        created_at: variant.created_at
+      }
     }
-  }).filter((item): item is CartItem => item !== null)
+  })
+  
+  return mapped.filter((item): item is NonNullable<typeof item> => item !== null) as CartItem[]
 }
 
 /* =========================

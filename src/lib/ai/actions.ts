@@ -26,7 +26,7 @@ export interface ImageAnalysis {
 export const generateTextDirect = generateTextFromClient
 
 // Use failover by default for production reliability
-export const generateText = async (prompt: string, options?: any) => {
+export const generateText = async (prompt: string, options?: Record<string, unknown>) => {
   try {
     // Try failover first for automatic model switching
     const result = await generateWithFailover(prompt, options)

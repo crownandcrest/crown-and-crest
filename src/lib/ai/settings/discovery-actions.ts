@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { requireAdmin } from '@/lib/admin/auth'
 
@@ -58,11 +58,11 @@ export async function discoverAvailableModels(
           error: `Model discovery not yet implemented for ${provider}` 
         }
     }
-  } catch (error: any) {
-    console.error('[Discovery] Error:', error)
-    return { 
-      success: false, 
-      error: error.message || 'Discovery failed' 
+  } catch (error: unknown) {
+    console.error('Model discovery error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Discovery failed'
     }
   }
 }
@@ -112,9 +112,9 @@ async function discoverOpenRouterModels(apiKey: string): Promise<{ success: bool
     })
 
     return { success: true, models }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[OpenRouter] Exception:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
 
@@ -162,9 +162,9 @@ async function discoverGoogleModels(apiKey: string): Promise<{ success: boolean;
       })
 
     return { success: true, models }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Google] Exception:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
 
@@ -193,8 +193,8 @@ async function discoverOpenAIModels(apiKey: string): Promise<{ success: boolean;
 
     // Filter for GPT models only
     const models: DiscoveredModel[] = (data.data || [])
-      .filter((model: any) => model.id.includes('gpt'))
-      .map((model: any) => ({
+      .filter((model: { id: string }) => model.id.includes('gpt'))
+      .map((model: { id: string; context_length?: number; input_cost_per_token?: number; output_cost_per_token?: number }) => ({
         id: model.id,
         name: model.id,
         description: `OpenAI ${model.id}`,
@@ -205,9 +205,9 @@ async function discoverOpenAIModels(apiKey: string): Promise<{ success: boolean;
       }))
 
     return { success: true, models }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[OpenAI] Exception:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
 
@@ -263,12 +263,12 @@ export async function testModelConnection(
       response: responseText,
       timestamp: new Date().toISOString()
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`[Test] Exception:`, error)
     return {
       model: modelId,
       success: false,
-      error: error.message,
+      error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
     }
   }
@@ -300,7 +300,7 @@ function getTestHeaders(provider: string, apiKey: string): Record<string, string
   return headers
 }
 
-function getTestBody(provider: string, modelId: string, prompt: string): any {
+function getTestBody(provider: string, modelId: string, prompt: string): Record<string, unknown> {
   if (provider === 'google') {
     return {
       contents: [{ parts: [{ text: prompt }] }]
@@ -315,13 +315,14 @@ function getTestBody(provider: string, modelId: string, prompt: string): any {
   }
 }
 
-function extractResponse(provider: string, data: any): string {
+function extractResponse(provider: string, data: Record<string, unknown>): string {
+  const responseData = data as any
   if (provider === 'google') {
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response'
+    return responseData.candidates?.[0]?.content?.parts?.[0]?.text || 'No response'
   }
 
   // OpenRouter & OpenAI
-  return data.choices?.[0]?.message?.content || 'No response'
+  return responseData.choices?.[0]?.message?.content || 'No response'
 }
 
 /**

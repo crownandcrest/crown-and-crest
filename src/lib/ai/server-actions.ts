@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 /**
  * Server Action wrapper for AI generation
@@ -20,11 +20,11 @@ export async function generateAIContent(
       success: true,
       content: result.content
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[AI Server Action] Generation failed:', error)
     return {
       success: false,
-      error: error.message || 'Failed to generate content'
+      error: error instanceof Error ? error.message : 'Failed to generate content'
     }
   }
 }

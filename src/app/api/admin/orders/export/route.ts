@@ -74,7 +74,20 @@ export async function GET(req: NextRequest) {
 /**
  * Generate CSV from orders data
  */
-function generateOrdersCsv(orders: any[]): string {
+interface OrderExport {
+  id: string
+  created_at: string
+  status: string
+  total_amount: number
+  payment_method?: string
+  customer_name?: string
+  customer_email?: string
+  customer_phone?: string
+  shipping_address?: Record<string, unknown>
+  [key: string]: unknown
+}
+
+function generateOrdersCsv(orders: OrderExport[]): string {
   // CSV Headers
   const headers = [
     'Order ID',
@@ -108,22 +121,22 @@ function generateOrdersCsv(orders: any[]): string {
     return [
       order.id.slice(0, 12),
       new Date(order.created_at).toLocaleString(),
-      order.firebase_uid.slice(0, 12),
+      String(order.firebase_uid || '').slice(0, 12),
       order.customer_phone || '',
       order.payment_method || (order.is_cod ? 'COD' : 'PREPAID'),
-      order.cod_fee || '0',
-      order.amount,
-      order.currency,
-      order.razorpay_risk_tier || '',
+      String(order.cod_fee || '0'),
+      String(order.amount || '0'),
+      String(order.currency || 'INR'),
+      String(order.razorpay_risk_tier || ''),
       order.status,
-      order.courier_name || '',
-      order.tracking_id || '',
-      address?.pincode || '',
-      order.shipment_status || '',
-      order.estimated_delivery_date || '',
-      order.actual_delivery_date || '',
-      order.razorpay_order_id || '',
-      order.razorpay_payment_id || '',
+      String(order.courier_name || ''),
+      String(order.tracking_id || ''),
+      String(address?.pincode || ''),
+      String(order.shipment_status || ''),
+      String(order.estimated_delivery_date || ''),
+      String(order.actual_delivery_date || ''),
+      String(order.razorpay_order_id || ''),
+      String(order.razorpay_payment_id || ''),
     ].map(escapeCSV).join(',')
   })
 
@@ -133,7 +146,7 @@ function generateOrdersCsv(orders: any[]): string {
 /**
  * Escape CSV field
  */
-function escapeCSV(field: any): string {
+function escapeCSV(field: unknown): string {
   const str = String(field)
   if (str.includes(',') || str.includes('"') || str.includes('\n')) {
     return `"${str.replace(/"/g, '""')}"`

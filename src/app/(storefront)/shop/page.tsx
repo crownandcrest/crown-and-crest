@@ -91,7 +91,24 @@ async function getProducts(searchParams: SearchParams) {
     }
 
     // Get stock flags for all products
-    const productIds = products.map((p: any) => p.id)
+    interface ProductBasic {
+        id: string
+        name: string
+        slug: string
+        base_price: number
+        image_url: string | null
+        category: string | null
+    }
+    interface StockFlag {
+        product_id: string
+        is_out_of_stock: boolean
+    }
+
+    if (!products) {
+        return []
+    }
+
+    const productIds = (products as unknown as ProductBasic[]).map((p) => p.id)
     const stockFlagsMap = new Map<string, boolean>()
 
     if (productIds.length > 0) {
@@ -99,7 +116,7 @@ async function getProducts(searchParams: SearchParams) {
             .rpc('get_product_stock_flags', { product_ids: productIds })
 
         if (!stockError && stockFlags) {
-            stockFlags.forEach((sf: any) => {
+            stockFlags.forEach((sf: StockFlag) => {
                 stockFlagsMap.set(sf.product_id, sf.is_out_of_stock)
             })
         } else {
@@ -108,7 +125,7 @@ async function getProducts(searchParams: SearchParams) {
     }
 
     // Map to Product interface with stock flags
-    return products.map((p: any) => ({
+    return (products as unknown as ProductBasic[]).map((p) => ({
         id: p.id,
         name: p.name,
         slug: p.slug,
